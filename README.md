@@ -47,7 +47,7 @@
 ## 项目结构
 
 ```
-yytxk/
+EventScorer/
 ├── run.py                          # 应用入口
 ├── requirements.txt                # Python 依赖
 ├── pytest.ini                      # 测试配置
@@ -87,12 +87,7 @@ yytxk/
 │   ├── test_warnings.py            # 告警测试
 │   └── test_pagination_utils.py    # 分页工具测试
 │
-├── activity.service                # systemd 服务单元（Gunicorn）
-├── 47.116.119.216.conf             # Nginx 反向代理配置
-├── replace_nginx.sh                # 替换 Nginx 配置脚本
-├── migrate_recorders.py            # 数据迁移脚本
-├── start.bat                       # Windows 启动脚本
-└── run_with_admin.bat              # Windows 启动（指定管理员密码）
+└── activity.service                # systemd 服务单元（Gunicorn）
 ```
 
 ## 技术栈
@@ -112,7 +107,7 @@ yytxk/
 ```bash
 # 1. 克隆仓库
 git clone <repo-url>
-cd yytxk
+cd EventScorer
 
 # 2. 创建虚拟环境并安装依赖
 python -m venv venv
@@ -136,33 +131,17 @@ python run.py
 
 ### 1. 部署到服务器
 
-将项目文件上传到服务器（如 `/var/www/yytxk`），安装依赖：
+将项目文件上传到服务器（如 `/var/www/EventScorer`），安装依赖：
 
 ```bash
-cd /var/www/yytxk
+cd /var/www/EventScorer
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. 配置环境变量
 
-```bash
-# 数据库（可选 — 不设置则使用 SQLite）
-export DB_HOST=localhost
-export DB_USER=yytj
-export DB_PASSWORD=your-password
-export DB_NAME=yytj
-
-# 安全配置
-export SECRET_KEY=your-strong-secret-key-here
-export ADMIN_PASSWORD=your-admin-password
-
-# 生产模式
-export FLASK_ENV=production
-```
-
-### 3. 初始化数据库
+### 2. 初始化数据库
 
 ```bash
 # 如果使用 MySQL，先创建数据库
@@ -172,22 +151,36 @@ mysql -u root -p -e "CREATE DATABASE yytj CHARACTER SET utf8mb4 COLLATE utf8mb4_
 gunicorn -w 4 -b 127.0.0.1:5000 run:app
 ```
 
-### 4. 配置 Nginx 反向代理
-
-参考 [`47.116.119.216.conf`](47.116.119.216.conf) 创建或替换 Nginx 配置：
+### 3. 配置 Nginx 反向代理
 
 ```bash
-sudo cp replace_nginx.sh /path/to/your/nginx/conf.d/
-sudo ./replace_nginx.sh
-# 或手动配置
+    location / {
+        proxy_pass http://127.0.0.1:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /static/ {
+        alias /www/wwwroot/EventScorer/app/static/;
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /uploads/ {
+        alias /www/wwwroot/EventScorer/uploads/;
+        internal;
+    }
 ```
+
 
 关键配置要点：
 - 将 `server_name` 改为你的域名
 - 设置 `proxy_pass http://127.0.0.1:5000` 转发到 Gunicorn
 - 配置 HTTPS（推荐使用 Certbot）
 
-### 5. 配置 systemd 服务
+### 4. 配置 systemd 服务
 
 参考 [`activity.service`](activity.service)：
 
@@ -198,7 +191,7 @@ sudo systemctl enable activity
 sudo systemctl start activity
 ```
 
-### 6. 验证部署
+### 5. 验证部署
 
 ```bash
 # 查看服务状态
@@ -210,11 +203,11 @@ sudo journalctl -u activity -f
 # 访问 http://your-domain/admin 确认可正常登录
 ```
 
-### 7. 后续维护
+### 6. 后续维护
 
 ```bash
 # 更新代码
-cd /var/www/yytxk
+cd /var/www/EventScorer
 git pull
 source venv/bin/activate
 pip install -r requirements.txt
