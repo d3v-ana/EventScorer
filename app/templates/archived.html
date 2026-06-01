@@ -1,0 +1,76 @@
+{% extends "admin_base.html" %}
+{% block title %}归档活动{% endblock %}
+{% block admin_title %}归档活动{% endblock %}
+{% block admin_content %}
+<div class="container">
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+    <h2 style="margin:0;padding:0;border:none;">已归档的活动（{{ arc_total }}）</h2>
+</div>
+        <form method="get" style="display:flex;gap:10px;margin-bottom:15px;flex-wrap:wrap;align-items:end;">
+            <div class="form-group" style="flex:1;min-width:160px;margin-bottom:0;">
+                <input type="text" class="form-control" name="arc_search" value="{{ arc_search }}" placeholder="搜索活动名称...">
+            </div>
+            <div class="form-group" style="flex:0;min-width:110px;margin-bottom:0;">
+                <select class="form-control" name="arc_type_id">
+                    <option value="0">全部类型</option>
+                    {% for t in activity_types %}
+                    <option value="{{ t.id }}" {% if arc_type_id==t.id %}selected{% endif %}>{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="flex:0;min-width:110px;margin-bottom:0;">
+                <select class="form-control" name="arc_dept_id">
+                    <option value="0">全部部门</option>
+                    {% for d in departments %}
+                    <option value="{{ d.id }}" {% if arc_dept_id==d.id %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary btn-sm">🔍 搜索</button>
+            {% if arc_search or arc_type_id or arc_dept_id %}<a href="{{ url_for('admin.archived_activities') }}" class="btn btn-info btn-sm">↺ 清除</a>{% endif %}
+        </form>
+
+        {% if archived %}
+        <div class="table-wrap"><table>
+            <thead>
+                <tr><th>活动名称</th><th>类型</th><th>发起部门</th><th>项目数</th><th>参赛人数</th><th>创建时间</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+                {% for a in archived %}
+                <tr>
+                    <td><strong>{{ a.name }}</strong></td>
+                    <td>{% if a.activity_type %}<span class="badge" style="background:#e3f2fd;color:#1565c0;">{{ a.activity_type.name }}</span>{% else %}<span style="color:#ccc;">-</span>{% endif %}</td>
+                    <td>{% if a.department %}{{ a.department.name }}{% else %}<span style="color:#ccc;">-</span>{% endif %}</td>
+                    <td>{{ a.activity_projects|length }}</td>
+                    <td>{{ a.qrcodes|selectattr('status','equalto','used')|list|length }}</td>
+                    <td>{{ a.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td style="white-space:nowrap;">
+                        <a href="{{ url_for('admin.activity_detail',activity_id=a.id) }}" class="btn btn-primary btn-sm">📋 详情</a>
+                        <a href="{{ url_for('admin.activity_ranking',activity_id=a.id) }}" class="btn btn-info btn-sm">🏆 排名</a>
+                        <a href="{{ url_for('admin.export_results',activity_id=a.id) }}" class="btn btn-info btn-sm">📤 导出</a>
+                        <form action="{{ url_for('admin.unarchive_activity',activity_id=a.id) }}" method="post" style="display:inline;">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-info btn-sm">↩️ 恢复</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table></div>
+        {% else %}
+        <p style="text-align:center;padding:40px;color:#666;">暂无已归档的活动</p>
+        {% endif %}
+
+        {% if arc_pages > 1 %}
+        <div style="text-align:center;margin-top:15px;">
+            {% for pg in range(1, arc_pages+1) %}
+                {% if pg == arc_page %}<span style="display:inline-block;padding:6px 12px;margin:0 3px;background:#5b86e5;color:#fff;border-radius:4px;font-weight:bold;">{{ pg }}</span>
+                {% elif pg <= 3 or pg > arc_pages-3 or (pg >= arc_page-1 and pg <= arc_page+1) %}<a href="?arc_page={{ pg }}&arc_search={{ arc_search }}&arc_type_id={{ arc_type_id }}&arc_dept_id={{ arc_dept_id }}" style="display:inline-block;padding:6px 12px;margin:0 3px;background:#f0f0f0;color:#333;border-radius:4px;text-decoration:none;">{{ pg }}</a>
+                {% elif pg == 4 or pg == arc_pages-3 %}<span style="padding:6px 8px;color:#999;">...</span>{% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

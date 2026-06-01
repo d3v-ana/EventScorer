@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}成绩排名 - {{ activity.name }}{% endblock %}
+{% block content %}
+<div class="header">
+    <div class="container">
+        <h1>{{ activity.name }}<span class="badge {% if activity.is_student %}badge-student{% else %}badge-staff{% endif %}">{{ activity.user_type_display }}</span> - 排名</h1>
+        <div class="nav">
+            <a href="{{ url_for('admin.activity_detail',activity_id=activity.id) }}" class="btn btn-info">返回</a>
+            <a href="{{ url_for('admin.export_results',activity_id=activity.id) }}" class="btn btn-success">📤 导出</a>
+        </div>
+    </div>
+</div>
+<div class="container" id="rankingAutoRefreshRoot" data-refresh-interval="10000">
+    <div class="stats-grid">
+        <div class="stat-card"><h3>{{ rankings|length }}</h3><p>参赛人数</p></div>
+        {% if rankings and has_time %}<div class="stat-card"><h3>{{ rankings[0].time_total|timefmt }}</h3><p>{% if has_score %}最佳总用时{% else %}最佳成绩{% endif %}</p></div>{% endif %}
+        {% if rankings and has_score %}<div class="stat-card"><h3>{{ best_score_total|scorefmt }}</h3><p>{% if has_time %}最高总分{% else %}最高分{% endif %}</p></div>{% endif %}
+    </div>
+    <div class="card"><h2>总排名</h2>
+        {% if rankings %}
+        <table class="ranking-table">
+            <thead><tr><th>排名</th><th>姓名</th>{% for f in registration_fields if f.key not in ('name',) %}<th>{% if f.key == 'class_name' %}班级{% else %}{{ f.label }}{% endif %}</th>{% endfor %}{% for p in projects %}<th>{{ p.name }}</th>{% endfor %}{% if has_score and has_time %}<th>总用时</th><th>总分</th>{% elif all_score %}<th>总分</th>{% else %}<th>总用时</th>{% endif %}</tr></thead>
+            <tbody>
+                {% for data in rankings %}
+                <tr>
+                    <td>{% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}{{ loop.index }}{% endif %}</td>
+                    <td><strong>{{ data.participant.name }}</strong></td>
+                    {% for f in registration_fields if f.key not in ('name',) %}<td>{% if f.key == 'class_name' %}{{ data.participant.class_name or '-' }}{% else %}{{ data.extra.get(f.key, '-') }}{% endif %}</td>{% endfor %}
+                    {% for p in projects %}<td>{% if data.project_results[p.id] is not none %}{% if project_type(p.type).input_mode=='score' %}{{ data.project_results[p.id]|scorefmt }}{% else %}{{ data.project_results[p.id]|timefmt }}{% endif %}{% else %}-{% endif %}</td>{% endfor %}
+                    {% if has_score and has_time %}
+                    <td><strong>{{ data.time_total|timefmt }}</strong></td>
+                    <td><strong>{{ data.score_total|scorefmt }}</strong></td>
+                    {% elif all_score %}
+                    <td><strong>{{ data.score_total|scorefmt }}</strong></td>
+                    {% else %}
+                    <td><strong>{{ data.time_total|timefmt }}</strong></td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}<p style="text-align:center;padding:40px;color:#666;">暂无数据</p>{% endif %}
+    </div>
+    {% for p in projects %}
+    <div class="card"><h2>{{ p.name }} - 单项排名</h2>
+        {% if project_rankings.get(p.id) %}
+        <table>
+            <thead><tr><th>排名</th><th>姓名</th>{% for f in registration_fields if f.key not in ('name',) %}<th>{% if f.key == 'class_name' %}班级{% else %}{{ f.label }}{% endif %}</th>{% endfor %}<th>{% if project_type(p.type).input_mode=='score' %}成绩{% else %}最终用时{% endif %}</th></tr></thead>
+            <tbody>
+                {% for data in project_rankings[p.id] %}
+                <tr>
+                    <td>{% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}{{ loop.index }}{% endif %}</td>
+                    <td><strong>{{ data.participant.name }}</strong></td>
+                    {% for f in registration_fields if f.key not in ('name',) %}<td>{% if f.key == 'class_name' %}{{ data.participant.class_name or '-' }}{% else %}{{ data.extra.get(f.key, '-') }}{% endif %}</td>{% endfor %}
+                    <td><strong>{% if project_type(p.type).input_mode=='score' %}{{ data.project_results[p.id]|scorefmt }}{% else %}{{ data.project_results[p.id]|timefmt }}{% endif %}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}<p style="text-align:center;padding:20px;color:#666;">暂无数据</p>{% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function(){
+    var root=document.getElementById('rankingAutoRefreshRoot');
+    if(!root)return;
+    var intervalMs=parseInt(root.getAttribute('data-refresh-interval')||'10000',10);
+    var refreshing=false;
+    function refreshRankings(){
+        if(refreshing||document.hidden)return;
+        refreshing=true;
+        fetch(window.location.href,{cache:'no-store',headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(function(resp){return resp.ok?resp.text():null;})
+        .then(function(html){
+            if(!html)return;
+            var doc=new DOMParser().parseFromString(html,'text/html');
+            var nextRoot=doc.getElementById('rankingAutoRefreshRoot');
+            if(nextRoot)root.innerHTML=nextRoot.innerHTML;
+        })
+        .catch(function(){})
+        .finally(function(){refreshing=false;});
+    }
+    if(intervalMs>0)setInterval(refreshRankings,intervalMs);
+})();
+</script>
+{% endblock %}

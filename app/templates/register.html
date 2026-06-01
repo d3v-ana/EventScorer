@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}参赛注册 - {{ activity.name }}{% endblock %}
+{% block content %}
+<div class="event-page">
+<div class="header"><div class="container"><h1>{{ activity.name }}<span class="badge {% if activity.is_student %}badge-student{% else %}badge-staff{% endif %}">{{ activity.user_type_display }}</span></h1></div></div>
+<div class="container">
+    <div class="card" style="max-width:500px;margin:0 auto;">
+        <h2>参赛注册</h2>
+        {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+        <p style="margin-bottom:15px;color:#666;">二维码编号: <strong>{{ qr.code }}</strong></p>
+        <form method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            {% for field in activity.registration_fields %}
+            <div class="form-group">
+                <label>{{ field.label }}{% if field.required %}<span style="color:red;">*</span>{% endif %}</label>
+                {% if field.type == 'select' and field.options %}
+                <select class="form-control" name="{{ field.key }}" {% if field.required %}required{% endif %}>
+                    <option value="">请选择{{ field.label }}</option>
+                    {% for opt in field.options %}
+                    <option value="{{ opt }}">{{ opt }}</option>
+                    {% endfor %}
+                </select>
+                {% elif field.type == 'number' %}
+                <input type="number" class="form-control" name="{{ field.key }}" {% if field.required %}required{% endif %} placeholder="请输入{{ field.label }}">
+                {% else %}
+                <input type="text" class="form-control" name="{{ field.key }}" {% if field.required %}required{% endif %} placeholder="请输入{{ field.label }}">
+                {% endif %}
+            </div>
+            {% endfor %}
+            <button type="submit" class="btn btn-primary" style="width:100%;">注册并查看成绩</button>
+        </form>
+    </div>
+</div>
+</div>
+{% endblock %}

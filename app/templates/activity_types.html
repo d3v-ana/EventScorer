@@ -1,0 +1,237 @@
+{% extends "admin_base.html" %}
+{% block title %}活动类型管理{% endblock %}
+{% block admin_title %}活动类型管理{% endblock %}
+{% block admin_content %}
+<div class="container">
+    <div class="card">
+        <h2>创建活动类型</h2>
+        <form action="{{ url_for('admin.create_activity_type') }}" method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+                <div class="form-group" style="flex:1;min-width:200px;margin-bottom:0;">
+                    <input type="text" class="form-control" name="name" required placeholder="类型名称（如：学生、教职工）">
+                </div>
+                <button type="submit" class="btn btn-success">➕ 创建类型</button>
+            </div>
+        </form>
+    </div>
+    <div class="card">
+        <h2>类型列表 ({{ types|length }})</h2>
+        {% if types %}
+        <div class="table-wrap activity-type-list-table-wrap">
+        <table class="activity-type-list-table">
+            <thead><tr><th>名称</th><th>活动数</th><th>创建时间</th><th>操作</th></tr></thead>
+            <tbody>
+                {% for t in types %}
+                {% set has_data = t.activities|length > 0 %}
+                <tr>
+                    <td><strong>{{ t.name }}</strong></td>
+                    <td>{{ t.activities|length }}</td>
+                    <td>{{ t.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn btn-info btn-sm" onclick="openFieldsModal('{{ t.id }}', '{{ t.name|e }}')">⚙️ 配置字段</button>
+                        <button class="btn btn-primary btn-sm" onclick="openEditModal('{{ url_for('admin.edit_activity_type', type_id=t.id) }}', '{{ t.name|e }}')">✏️ 编辑</button>
+                        <form action="{{ url_for('admin.delete_activity_type', type_id=t.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定删除类型「{{ t.name }}」?')">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-danger btn-sm" {% if has_data %}disabled style="opacity:0.4;cursor:not-allowed;" title="该类型下有{{ t.activities|length }}个活动，无法删除"{% endif %}>🗑️ 删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}<p style="text-align:center;padding:40px;color:#666;">暂无类型</p>{% endif %}
+    </div>
+</div>
+
+<!-- 字段配置数据（内联 JS，避免 HTML 转义问题） -->
+<script>
+window._typeFields = {};
+{% for t in types %}
+window._typeFields[{{ t.id }}] = {{ t.fields_config|safe }};
+{% endfor %}
+</script>
+
+<!-- 编辑名称弹窗 -->
+<div id="editModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:400px;width:90%;">
+        <h3 style="margin:0 0 16px 0;font-size:16px;">编辑名称</h3>
+        <form id="editForm" method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group" style="margin-bottom:16px;">
+                <input type="text" class="form-control" id="editNameInput" name="name" required style="font-size:16px;padding:12px;">
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">✕ 取消</button>
+                <button type="submit" class="btn btn-primary">💾 保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 配置字段弹窗 -->
+<div id="fieldsModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:550px;width:95%;max-height:90vh;overflow-y:auto;">
+        <h3 style="margin:0 0 16px 0;font-size:16px;">配置注册字段 - <span id="fieldsTypeName"></span></h3>
+
+        <!-- 标准字段 -->
+        <div style="padding:12px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:10px;background:#f8f9fa;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">标准</span>
+                <span><strong>姓名</strong></span>
+                <span style="color:#999;font-size:12px;">(key: name)</span>
+                <span style="color:#999;font-size:12px;margin-left:auto;">必填 · 不可删除</span>
+            </div>
+        </div>
+        <div style="padding:12px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:8px;">
+                <span style="background:#fff3e0;color:#e65100;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">标准</span>
+                <span><strong>班级</strong></span>
+                <span style="color:#999;font-size:12px;">(key: class_name)</span>
+                <label style="margin-left:auto;display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;">
+                    <input type="checkbox" id="needClassCheck" style="width:18px;height:18px;cursor:pointer;"> <strong>启用班级</strong>
+                </label>
+            </div>
+        </div>
+
+        <!-- 扩展字段 -->
+        <div style="padding:8px 0 4px;font-size:13px;font-weight:600;color:#999;border-top:1px solid #eee;margin-bottom:8px;">扩展字段</div>
+        <div id="fieldsList"></div>
+        <div style="margin-bottom:16px;">
+            <button type="button" class="btn btn-info btn-sm" onclick="addField()">➕ 添加扩展字段</button>
+        </div>
+
+        <!-- 操作按钮 -->
+        <form id="fieldsForm" method="post" action="">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="fields_config" id="fieldsConfigInput" value="">
+            <div style="display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #eee;padding-top:16px;">
+                <button type="button" class="btn btn-secondary" onclick="closeFieldsModal()">✕ 取消</button>
+                <button type="submit" class="btn btn-primary">💾 保存配置</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+var currentTypeId = null;
+var fieldIdx = 0;
+
+function openEditModal(actionUrl, name){
+    document.getElementById('editForm').action = actionUrl;
+    document.getElementById('editNameInput').value = name;
+    document.getElementById('editModal').style.display = 'flex';
+}
+function closeEditModal(){
+    document.getElementById('editModal').style.display = 'none';
+}
+
+// ===== 字段配置 =====
+function openFieldsModal(typeId, typeName){
+    currentTypeId = typeId;
+    document.getElementById('fieldsTypeName').textContent = typeName;
+    document.getElementById('fieldsList').innerHTML = '';
+    fieldIdx = 0;
+    document.getElementById('needClassCheck').checked = false;
+
+    // Load fields from global JS object
+    var list = window._typeFields[typeId] || [];
+    for(var i = 0; i < list.length; i++){
+        var f = list[i];
+        if(f.key === 'class_name') document.getElementById('needClassCheck').checked = true;
+        else if(f.key !== 'name') addField(f);
+    }
+    document.getElementById('fieldsModal').style.display = 'flex';
+}
+
+function closeFieldsModal(){
+    document.getElementById('fieldsModal').style.display = 'none';
+    currentTypeId = null;
+}
+
+function addField(field){
+    field = field || {key:'', label:'', type:'text', required:true, options:[]};
+    var idx = fieldIdx++;
+    var div = document.createElement('div');
+    div.id = 'fld_'+idx;
+    div.style.cssText = 'padding:10px;border:1px solid #e0e0e0;border-radius:8px;margin-bottom:8px;';
+    div.innerHTML =
+        '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">' +
+        '<input class="form-control" placeholder="标识" value="'+esc(field.key)+'" id="fk_'+idx+'" style="width:120px;font-size:13px;padding:6px 8px;">' +
+        '<input class="form-control" placeholder="显示名称" value="'+esc(field.label)+'" id="fl_'+idx+'" style="width:120px;font-size:13px;padding:6px 8px;">' +
+        '<select class="form-control" id="ft_'+idx+'" style="width:80px;font-size:13px;padding:6px 8px;">' +
+        '<option value="text"'+(field.type==='text'?' selected':'')+'>文本</option>' +
+        '<option value="number"'+(field.type==='number'?' selected':'')+'>数字</option>' +
+        '<option value="select"'+(field.type==='select'?' selected':'')+'>下拉</option>' +
+        '</select>' +
+        '<label style="font-size:13px;cursor:pointer;"><input type="checkbox" '+(field.required?'checked':'')+' id="fr_'+idx+'" style="width:16px;height:16px;cursor:pointer;"> 必填</label>' +
+        '<button type="button" onclick="document.getElementById(\'fld_'+idx+'\').remove()" style="background:none;border:none;color:#f45c43;cursor:pointer;font-size:16px;" title="删除">✕</button>' +
+        '</div>' +
+        '<div id="fopts_'+idx+'" style="display:'+(field.type==='select'?'block':'none')+';">' +
+        '<textarea class="form-control" placeholder="下拉选项，每行一个" id="fo_'+idx+'" rows="4" style="font-size:13px;padding:6px 8px;resize:vertical;">'+(field.options?esc(field.options.join('\n')):'')+'</textarea>' +
+        '</div>';
+    div.querySelector('select').addEventListener('change', function(){
+        var idx2 = this.id.replace('ft_','');
+        var opts = document.getElementById('fopts_'+idx2);
+        if(opts) opts.style.display = this.value === 'select' ? 'block' : 'none';
+    });
+    document.getElementById('fieldsList').appendChild(div);
+}
+
+// Submit: gather fields config
+document.getElementById('fieldsForm').addEventListener('submit', function(e){
+    var fields = [];
+    // Standard: name
+    fields.push({key:'name', label:'姓名', type:'text', required:true});
+    // Class if enabled
+    if(document.getElementById('needClassCheck').checked){
+        fields.push({key:'class_name', label:'班级', type:'text', required:true});
+    }
+    // Extra fields
+    var list = document.getElementById('fieldsList');
+    for(var i = 0; i < list.children.length; i++){
+        var id = list.children[i].id.replace('fld_','');
+        var key = document.getElementById('fk_'+id);
+        var label = document.getElementById('fl_'+id);
+        var type = document.getElementById('ft_'+id);
+        var req = document.getElementById('fr_'+id);
+        if(!key || !label || !key.value.trim() || !label.value.trim()) continue;
+        var f = {key:key.value.trim(), label:label.value.trim(), type:type.value, required:req.checked};
+        if(type.value === 'select'){
+            var opts = document.getElementById('fo_'+id);
+            var lines = opts ? opts.value.split(/\r?\n/).map(function(s){return s.trim();}).filter(function(s){return s;}) : [];
+            var seen = {};
+            if(lines.length === 0){
+                alert('下拉字段“'+f.label+'”至少需要一个选项，每行一个。');
+                e.preventDefault();
+                return;
+            }
+            for(var j = 0; j < lines.length; j++){
+                if(lines[j].indexOf(',') !== -1 || lines[j].indexOf('，') !== -1){
+                    alert('下拉字段“'+f.label+'”的选项请换行填写，不要用逗号分隔。');
+                    e.preventDefault();
+                    return;
+                }
+                if(seen[lines[j]]){
+                    alert('下拉字段“'+f.label+'”存在重复选项：'+lines[j]);
+                    e.preventDefault();
+                    return;
+                }
+                seen[lines[j]] = true;
+            }
+            f.options = lines;
+        }
+        fields.push(f);
+    }
+    document.getElementById('fieldsConfigInput').value = JSON.stringify(fields);
+    if(currentTypeId) this.action = '/admin/activity-type/'+currentTypeId+'/fields';
+});
+
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// Close modals on overlay click
+document.getElementById('editModal').addEventListener('click', function(e){ if(e.target === this) closeEditModal(); });
+document.getElementById('fieldsModal').addEventListener('click', function(e){ if(e.target === this) closeFieldsModal(); });
+</script>
+{% endblock %}

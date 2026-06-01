@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}管理员登录{% endblock %}
+{% block content %}
+<div class="header">
+    <div class="container"><h1>管理员登录</h1></div>
+</div>
+<div class="container">
+    <div class="card" style="max-width:450px;margin:0 auto;">
+        <h2>登录后台</h2>
+        {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+        <form method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>用户名</label>
+                <input type="text" class="form-control" name="username" required>
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <input type="password" class="form-control" name="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width:100%;">登录</button>
+        </form>
+        <p style="text-align:center;margin-top:15px;color:#999;">首次登录默认管理员: admin（密码系统随机生成，请查看控制台输出或设置 ADMIN_PASSWORD 环境变量）</p>
+    </div>
+</div>
+{% endblock %}

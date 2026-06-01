@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ activity.name }} - 打印二维码{% endblock %}
+{% block extra_css %}
+<style>
+@media print {
+    body{background:white;}
+    .header,.btn,.no-print{display:none!important;}
+}
+.qr-grid{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;}
+.qr-item{border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center;width:170px;position:relative;}
+.qr-item.used{background:#f0fff0;border-color:#4caf50;}
+.qr-item.used .participant-info{font-size:11px;color:#333;margin-top:4px;}
+.qr-item.used .participant-info .name{font-weight:bold;color:#2e7d32;}
+.qr-item .status-tag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:3px;margin-bottom:4px;}
+.qr-item .status-tag.unused{background:#e3f2fd;color:#1565c0;}
+.qr-item .status-tag.used{background:#e8f5e9;color:#2e7d32;}
+</style>
+{% endblock %}
+{% block content %}
+<div class="header">
+    <div class="container">
+        <h1>{{ activity.name }}<span class="badge {% if activity.is_student %}badge-student{% else %}badge-staff{% endif %}">{{ activity.user_type_display }}</span> - 二维码</h1>
+        <div class="nav">
+            <a href="{{ url_for('admin.activity_detail',activity_id=activity.id) }}" class="btn btn-info">返回</a>
+            {% if show_all %}
+            <a href="{{ url_for('admin.qr_print',activity_id=activity.id) }}" class="btn btn-warning">仅未使用</a>
+            {% else %}
+            <a href="{{ url_for('admin.qr_print',activity_id=activity.id,all=1) }}" class="btn btn-primary">打印全部（含已注册）</a>
+            {% endif %}
+            <a href="{{ url_for('admin.qr_pdf',activity_id=activity.id) }}{% if show_all %}?all=1{% endif %}" class="btn btn-success" target="_blank">下载PDF</a>
+            <button class="btn btn-secondary" onclick="window.print()">浏览器打印</button>
+        </div>
+    </div>
+</div>
+<div class="container">
+    <div class="card">
+        <h2>参赛二维码 <small style="color:#999;font-weight:normal;">（{% if show_all %}共 {{ qr_list|length }} 个{% else %}{{ qr_list|length }} 个未使用{% endif %}）</small></h2>
+        <p style="color:#666;margin-bottom:15px;">
+            {% if show_all %}
+                绿色背景=已注册; 白色背景=未使用
+            {% else %}
+                打印后分发给参赛者，参赛者扫描注册个人信息
+            {% endif %}
+        </p>
+        <div class="qr-grid">
+            {% for item in qr_list %}
+            {% set qr = item.qr %}
+            {% set p = item.participant %}
+            <div class="qr-item{% if qr.status == 'used' %} used{% endif %}">
+                <span class="status-tag {{ qr.status }}">{% if qr.status == 'used' %}已注册{% else %}未使用{% endif %}</span>
+                <img src="{{ url_for('static',filename='qrcodes/'+qr.id|string+'.png') }}" width="140" alt="QR">
+                <p style="font-weight:bold;margin:4px 0 0;">{{ qr.code }}</p>
+                {% if p %}
+                <div class="participant-info">
+                    <div class="name">{{ p.name }}</div>
+                    {% if p.class_name %}<div>{{ p.class_name }}</div>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

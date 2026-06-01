@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}我的成绩 - {{ activity.name }}{% endblock %}
+{% block content %}
+<div class="event-page">
+<div class="header"><div class="container"><h1>{{ activity.name }}<span class="badge {% if activity.is_student %}badge-student{% else %}badge-staff{% endif %}">{{ activity.user_type_display }}</span></h1></div></div>
+<div class="container">
+    <div class="card"><h2>我的信息</h2>
+        <div class="stats-grid">
+            <div class="stat-card"><h3>{{ participant.name }}</h3><p>姓名</p></div>
+            {% if participant.class_name %}<div class="stat-card"><h3>{{ participant.class_name }}</h3><p>班级</p></div>{% endif %}
+            {% set extra = participant.get_extra() %}
+            {% for f in registration_fields %}
+            {% if f.key not in ('name','class_name') and extra.get(f.key) %}
+            <div class="stat-card"><h3>{{ extra[f.key] }}</h3><p>{{ f.label }}</p></div>
+            {% endif %}
+            {% endfor %}
+            <div class="stat-card"><h3>{% if all_score %}{{ total_time|scorefmt }}{% else %}{{ total_time|timefmt }}{% endif %}</h3><p>{% if all_score %}总成绩{% else %}总用时{% endif %}</p></div>
+        </div>
+    </div>
+    <div class="card"><h2>各项目成绩</h2>
+        {% for item in results %}
+        <div class="result-item">
+            <h4>{{ item.project.name }}</h4>
+            {% if item.result %}
+                {% if project_type(item.project.type).input_mode=='score' %}
+                <div style="display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px;">
+                    <div><p style="font-size:13px;color:#666;">成绩</p><p class="time" style="color:#4caf50;">{{ item.result.final_time|scorefmt }}分</p></div>
+                </div>
+                {% else %}
+            <h4><small style="color:#999;">(犯规罚{{ item.project.penalty_per_violation }}秒)</small></h4>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:10px;">
+                <div><p style="font-size:13px;color:#666;">用时</p><p class="time">{{ item.result.time_seconds|timefmt }}</p></div>
+                <div><p style="font-size:13px;color:#666;">犯规</p><p class="time">{{ item.result.violations }}次</p></div>
+                <div><p style="font-size:13px;color:#666;">罚时</p><p class="time">{{ item.result.penalty_time|timefmt }}</p></div>
+                <div><p style="font-size:13px;color:#666;">最终</p><p class="time" style="color:#667eea;">{{ item.result.final_time|timefmt }}</p></div>
+            </div>
+                {% endif %}
+            {% else %}<p style="color:#999;">暂无成绩</p>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+</div>
+{% endblock %}

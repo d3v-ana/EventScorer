@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}活动成绩管理系统{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.min.css') }}">
+    <style>
+    *, *::before, *::after {
+        box-sizing: border-box;
+    }
+    html {
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+    }
+    body {
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+    }
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+    input, select, textarea, button {
+        font-size: 16px; /* 防止 iOS 自动缩放 */
+    }
+
+    @media (max-width:768px){
+        .nav{flex-wrap:wrap;gap:6px;}
+        .nav .btn{font-size:13px;padding:8px 12px;}
+        table{font-size:13px;width:100%;}
+        table th,table td{padding:8px 6px;white-space:nowrap;}
+        .card{padding:15px;}
+        .card h2{font-size:16px;}
+        .stats-grid{grid-template-columns:repeat(2,1fr);gap:10px;}
+        .stat-card{padding:15px;}
+        .stat-card h3{font-size:1.3em;}
+        .container{padding:10px;max-width:100%;}
+        .header h1{font-size:1.5em;}
+        .header{padding:15px 0 !important;}
+        .btn{padding:8px 14px;font-size:13px;}
+        .btn-sm{padding:5px 10px;font-size:12px;}
+        .nav .btn-sm{padding:5px 8px;font-size:11px;}
+
+        /* 可横向滚动表格 */
+        .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0;}
+        .table-wrap table{min-width:500px;}
+
+        /* 结果项目自适应 */
+        .result-item{padding:15px !important;}
+        .result-item .time{font-size:1.2em !important;}
+
+        /* 二维码容器 */
+        .qrcode-container img{max-width:200px !important;}
+
+        /* 项目列表标签 */
+        .project-list{gap:6px;}
+        .project-tag{padding:5px 10px;font-size:12px;}
+
+        /* 导航栏 */
+        .header h1{font-size:1.3em;}
+    }
+    </style>
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    {% block content %}{% endblock %}
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

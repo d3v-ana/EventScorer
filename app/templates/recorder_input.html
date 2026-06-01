@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block title %}{{ activity.name }} - 录入成绩{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/recorder.css') }}">
+{% endblock %}
+{% block content %}
+<div class="event-page">
+<div class="header"><div class="container"><h1>{{ activity.name }}<span class="badge {% if activity.is_student %}badge-student{% else %}badge-staff{% endif %}">{{ activity.user_type_display }}</span></h1><p style="color:rgba(255,255,255,0.8);text-align:center;">录入员: {{ recorder.name }} | 参赛者: {{ participant.name }}</p></div></div>
+<div class="container">
+    <div class="card">
+        <h2>录入成绩 - {{ participant.name }}</h2>
+        {% if participant.class_name %}<p>班级: {{ participant.class_name }}</p>{% endif %}
+        {% set extra = participant.get_extra() %}
+        {% for f in activity.registration_fields if f.key not in ('name','class_name') and extra.get(f.key) %}
+        <p>{{ f.label }}: <strong>{{ extra[f.key] }}</strong></p>
+        {% endfor %}
+        <form id="resultForm">
+            <div class="form-group">
+                <label>项目</label>
+                <select class="form-control" id="projectId" name="project_id" required style="font-size:1.1em;">
+                    <option value="">请选择</option>
+                    {% for p in allowed_projects %}
+                    <option value="{{ p.id }}" data-penalty="{{ p.penalty_per_violation }}" data-type="{{ project_type(p.type).input_mode }}" data-max-score="{{ p.max_score or '' }}">{{ p.name }}{% if project_type(p.type).input_mode=='score' %}[分数]{% else %}(罚{{ p.penalty_per_violation }}s/次){% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div id="timeSection" class="form-group">
+                <label>用时 <small style="color:#999;font-weight:normal;">(开始计时或手动输入)</small></label>
+                <div class="stopwatch-display" id="stopwatchDisplay">0:00.000</div>
+                <div style="display:flex;gap:10px;margin-top:10px;justify-content:center;">
+                    <button type="button" class="btn btn-primary" id="startBtn" onclick="startStopwatch()" style="font-size:1.2em;padding:12px 30px;">开始计时</button>
+                    <button type="button" class="btn btn-danger" id="stopBtn" onclick="stopStopwatch()" style="font-size:1.2em;padding:12px 30px;" disabled>结束计时</button>
+                    <button type="button" class="btn btn-secondary" id="resetBtn" onclick="resetStopwatch()" style="font-size:1.2em;padding:12px 20px;">重置</button>
+                </div>
+                <details style="margin-top:12px;">
+                    <summary style="cursor:pointer;color:#667eea;font-weight:600;font-size:13px;">⏱️ 手动输入</summary>
+                    <div style="margin-top:10px;">
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="number" class="form-control" id="timeMin" value="0" min="0" max="999" style="width:80px;font-size:1.3em;text-align:center;font-family:monospace;" inputmode="numeric">
+                        <span style="font-size:1.3em;color:#999;">分</span>
+                        <input type="text" class="form-control" id="timeInput" value="0" style="font-size:1.4em;font-family:monospace;text-align:center;flex:1;" inputmode="decimal" placeholder="秒.毫秒 如 5.783" autocomplete="off">
+                    </div>
+                    <div class="time-display" style="margin-top:10px;"><span class="label">解析结果</span><span id="parsedTime">0:00.000</span></div>
+                    </div>
+                </details>
+            </div>
+            <div id="violationSection" class="form-group">
+                <label>犯规次数</label>
+                <div class="violation-row">
+                    <button type="button" class="adj-btn" onclick="adjViolation(-1)">−</button>
+                    <input type="number" class="form-control" id="violations" name="violations" min="0" value="0" style="font-size:1.4em;font-family:monospace;text-align:center;">
+                    <button type="button" class="adj-btn" onclick="adjViolation(1)">+</button>
+                </div>
+            </div>
+            <div id="calcSection" class="result-item" style="background:#e8eaf6;border-left-color:#3f51b5;">
+                <h4>计算结果</h4>
+                <div class="preview-row" style="grid-template-columns:1fr 1fr;">
+                    <div><span class="lbl">用时</span><span class="val" id="calcRaw">0:00.000</span></div>
+                    <div><span class="lbl">罚时</span><span class="val" id="calcPenalty">0:00.000</span></div>
+                </div>
+                <div class="preview-row" style="grid-template-columns:1fr;margin-top:8px;">
+                    <div style="background:#e3f2fd;border-radius:8px;padding:12px;"><span class="lbl">最终</span><span class="val" style="color:#f45c43;font-size:1.6em;" id="calcFinal">0:00.000</span></div>
+                </div>
+            </div>
+            <!-- 分数输入 -->
+            <div id="scoreSection" style="display:none;">
+                <div class="form-group">
+                    <label>成绩 <small style="color:#999;font-weight:normal;" id="scoreHint"></small></label>
+                    <input type="number" class="form-control" id="scoreInput" name="score" min="0.1" step="0.1" style="font-size:2em;text-align:center;font-family:monospace;padding:20px;" placeholder="输入成绩">
+                </div>
+                <div class="result-item" style="background:#e8f5e9;border-left-color:#4caf50;">
+                    <h4>录入成绩</h4>
+                    <p style="font-size:2em;font-weight:bold;text-align:center;color:#4caf50;" id="scorePreview">-</p>
+                </div>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:10px;">
+                <button type="submit" class="btn btn-success" style="flex:1;font-size:1.2em;padding:15px;">提交成绩</button>
+                <a href="{{ url_for('recorder.recorder_scan',recorder_id=recorder.id) }}" class="btn btn-info">返回扫描</a>
+            </div>
+            <div id="submitMsg" style="margin-top:10px;"></div>
+        </form>
+    </div>
+    <div class="card"><h2>已录入成绩</h2>
+        <table><thead><tr><th>项目</th><th>用时/成绩</th><th>犯规</th><th>罚时</th><th>最终成绩</th></tr></thead>
+            <tbody>{% for p in allowed_projects %}<tr><td><strong>{{ p.name }}</strong></td>
+                {% set r = participant.results|selectattr('project_id','equalto',p.id)|first %}
+                {% if r %}
+                    {% if project_type(p.type).input_mode=='score' %}
+                        <td>{{ r.time_seconds|scorefmt }}</td><td>-</td><td>-</td><td><strong>{{ r.final_time|scorefmt }}</strong></td>
+                    {% else %}
+                        <td>{{ r.time_seconds|timefmt }}</td><td>{{ r.violations }}次</td><td>{{ r.penalty_time|timefmt }}</td><td><strong>{{ r.final_time|timefmt }}</strong></td>
+                    {% endif %}
+                {% else %}<td colspan="4" style="color:#999;text-align:center;">暂无成绩</td>{% endif %}</tr>{% endfor %}</tbody></table>
+    </div>
+</div>
+</div>
+{% endblock %}
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/recorder.js') }}"></script>
+<script>
+var csrfToken='{{ csrf_token() }}';
+var recorderId={{ recorder.id }};
+var projectTypes = {{ project_types_json|safe }};
+
+function getProjectMode(sel){
+    var fromBackend=projectTypes[sel.value];
+    if(fromBackend)return fromBackend;
+    var opt=sel.options[sel.selectedIndex];
+    return opt?opt.dataset.type:'time';
+}
+
+// ===== 模式切换 =====
+function switchInputMode(){
+    var sel=document.getElementById('projectId');
+    var mode=getProjectMode(sel);
+    document.getElementById('timeSection').style.display=(mode==='score'?'none':'');
+    document.getElementById('violationSection').style.display=(mode==='score'?'none':'');
+    document.getElementById('calcSection').style.display=(mode==='score'?'none':'');
+    document.getElementById('scoreSection').style.display=(mode==='score'?'':'none');
+    if(mode==='score'){
+        var opt=sel.options[sel.selectedIndex];
+        var hint=document.getElementById('scoreHint');
+        hint.textContent=opt&&opt.dataset.maxScore?'(满分: '+opt.dataset.maxScore+')':'';
+        document.getElementById('scoreInput').value='';
+        document.getElementById('scorePreview').textContent='-';
+    }
+}
+
+// ===== 项目选择: 记忆 + 切换 =====
+var LAST_PROJECT_KEY='recorder_last_project_'+recorderId;
+var saved=localStorage.getItem(LAST_PROJECT_KEY);
+if(saved)document.getElementById('projectId').value=saved;
+setRecorderProjectKey(LAST_PROJECT_KEY);
+document.getElementById('projectId').addEventListener('change',function(){
+    if(this.value)localStorage.setItem(LAST_PROJECT_KEY,this.value);
+    switchInputMode();
+    calcPreview();
+});
+document.getElementById('timeMin').addEventListener('change',function(){getTime('timeMin','timeInput','parsedTime');calcPreview();});
+document.getElementById('timeInput').addEventListener('input',function(){getTime('timeMin','timeInput','parsedTime');calcPreview();});
+document.getElementById('violations').addEventListener('input',calcPreview);
+switchInputMode();
+calcPreview();
+
+// ===== 分数预览 =====
+document.getElementById('scoreInput').addEventListener('input',function(){
+    var v=parseFloat(this.value)||0;
+    document.getElementById('scorePreview').textContent=v>0 ? v : '-';
+});
+
+// ===== 提交 =====
+document.getElementById('resultForm').addEventListener('submit',function(e){
+    e.preventDefault();
+    var pid=document.getElementById('projectId').value,el=document.getElementById('submitMsg');
+    if(!pid){el.innerHTML='<div class="alert alert-danger">请选择项目</div>';return;}
+    var sel=document.getElementById('projectId');
+    var mode=getProjectMode(sel);
+    if(mode==='score'){
+        var score=parseFloat(document.getElementById('scoreInput').value)||0;
+        if(score<=0){el.innerHTML='<div class="alert alert-danger">成绩必须大于0</div>';return;}
+        var opt=sel.options[sel.selectedIndex];
+        if(opt&&opt.dataset.maxScore&&score>parseFloat(opt.dataset.maxScore)){el.innerHTML='<div class="alert alert-danger">成绩不能超过满分'+opt.dataset.maxScore+'</div>';return;}
+        var fd=new FormData();
+        fd.append('project_id',pid);
+        fd.append('score',score);
+        fd.append('_csrf_token',csrfToken);
+        fetch(window.location.href,{method:'POST',body:fd,headers:{'X-CSRF-Token':csrfToken}})
+        .then(r=>r.json()).then(function(d){
+            if(d.success) showSuccessOverlay(d.final_time,'score',recorderId);
+            else el.innerHTML='<div class="alert alert-danger">'+ (d.error||'录入失败') +'</div>';
+        });
+    }else{
+        if(stopwatchRunning){alert('请先结束计时');return;}
+        var raw=getTime('timeMin','timeInput','parsedTime');
+        if(raw<=0){alert('用时不能为0，请先计时');return;}
+        var intSec=Math.floor(raw);
+        var fd=new FormData();
+        fd.append('project_id',pid);
+        fd.append('time_minutes',Math.floor(intSec/60));
+        fd.append('time_seconds',intSec%60);
+        fd.append('time_ms',Math.round((raw-intSec)*1000));
+        fd.append('violations',document.getElementById('violations').value);
+        fd.append('_csrf_token',csrfToken);
+        fetch(window.location.href,{method:'POST',body:fd,headers:{'X-CSRF-Token':csrfToken}})
+        .then(r=>r.json()).then(function(d){
+            if(d.success) showSuccessOverlay(d.final_time,'time',recorderId);
+            else el.innerHTML='<div class="alert alert-danger">'+ (d.error||'录入失败') +'</div>';
+        });
+    }
+});
+</script>
+{% endblock %}

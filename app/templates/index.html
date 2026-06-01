@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}活动成绩管理系统{% endblock %}
+{% block content %}
+<div class="header">
+    <div class="container">
+        <h1>活动成绩管理系统</h1>
+        <div class="nav">
+            {% if admin() %}
+                <a href="{{ url_for('admin.admin') }}" class="btn btn-primary">管理后台</a>
+                <a href="{{ url_for('auth.admin_account') }}" class="btn btn-info">账户管理</a>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-danger">退出</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}" class="btn btn-primary">管理员登录</a>
+            {% endif %}
+            <a href="{{ url_for('recorder.recorder_login') }}" class="btn btn-success">录入员入口</a>
+        </div>
+    </div>
+</div>
+<div class="container">
+    <div class="card">
+        <h2>系统功能</h2>
+        <div class="stats-grid">
+            <div class="stat-card"><h3>创建活动</h3><p>创建活动与独立项目配置</p></div>
+            <div class="stat-card"><h3>批量二维码</h3><p>批量生成参赛二维码</p></div>
+            <div class="stat-card"><h3>扫码注册</h3><p>参赛者扫码注册个人信息</p></div>
+            <div class="stat-card"><h3>录入成绩</h3><p>录入员扫码录入成绩</p></div>
+            <div class="stat-card"><h3>成绩排名</h3><p>自动计算排名</p></div>
+            <div class="stat-card"><h3>导出Excel</h3><p>一键导出成绩</p></div>
+        </div>
+    </div>
+</div>
+{% endblock %}

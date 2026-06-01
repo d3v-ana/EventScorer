@@ -1,0 +1,56 @@
+{% extends "admin_base.html" %}
+{% block content %}
+<div class="container">
+    <h1>📋 参赛者成绩历史</h1>
+    <p style="margin-bottom:20px;">
+        <strong>{{ participant.name }}</strong>
+        {% if participant.class_name %} · {{ participant.class_name }}{% endif %}
+         · 活动：{{ activity.name }}
+        <a href="{{ url_for('admin.activity_detail', activity_id=activity.id, tab='tab-participants') }}" style="margin-left:15px;color:#667eea;">← 返回参赛者列表</a>
+    </p>
+
+    {% if results %}
+    <table>
+        <thead>
+            <tr>
+                <th>项目</th>
+                <th>类型</th>
+                <th>成绩</th>
+                <th>犯规次数</th>
+                <th>录入员</th>
+                <th>提交时间</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in results %}
+            <tr>
+                <td><strong>{{ r.project }}</strong></td>
+                <td>{% if r.project_type == 'score' %}分值{% else %}计时{% endif %}</td>
+                <td>
+                    {% if r.project_type == 'score' %}
+                    {{ r.value|scorefmt }}
+                    {% else %}
+                    {{ r.value|timefmt }}
+                    {% endif %}
+                </td>
+                <td>{{ r.violations }}</td>
+                <td>{{ r.recorder_name }}</td>
+                <td>{{ r.recorded_at | string }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align:center;color:#999;padding:40px;">
+        <p style="font-size:3em;margin-bottom:10px;">📭</p>
+        <p>暂无成绩记录</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+table { width:100%; border-collapse:collapse; }
+th, td { padding:10px 14px; border-bottom:1px solid #e0e0e0; text-align:left; }
+th { background:#f5f5f5; font-weight:600; }
+</style>
+{% endblock %}

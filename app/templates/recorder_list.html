@@ -1,0 +1,90 @@
+{% extends "admin_base.html" %}
+{% block title %}录入员管理{% endblock %}
+{% block admin_title %}录入员管理{% endblock %}
+{% block admin_content %}
+<div class="container">
+    <div class="card">
+        <h2>创建录入员</h2>
+        <form action="{{ url_for('admin.create_recorder') }}" method="post"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div style="display:flex;gap:10px;align-items:end;">
+                <div class="form-group" style="flex:1;margin-bottom:0;">
+                    <input type="text" class="form-control" name="name" required placeholder="录入员姓名">
+                </div>
+                <button type="submit" class="btn btn-success">➕ 创建录入员</button>
+            </div>
+        </form>
+    </div>
+    <div class="card">
+        <h2>录入员列表 ({{ total }})</h2>
+        <div class="table-wrap recorder-list-table-wrap">
+        <table class="recorder-list-table"><thead><tr><th>ID</th><th>姓名</th><th>KEY</th><th>分配活动数</th><th>操作</th></tr></thead>
+            <tbody>
+                {% for rec in recorders %}
+                <tr>
+                    <td>{{ rec.id }}</td>
+                    <td><strong>{{ rec.name }}</strong></td>
+                    <td><code style="background:#f0f0f0;padding:3px 8px;border-radius:4px;font-family:monospace;">{{ rec.record_key }}</code></td>
+                    <td>{{ activity_count_map.get(rec.id, 0) }} 个活动</td>
+                    <td>
+                        <button class="btn btn-primary btn-sm" onclick="openEditModal({{ rec.id }}, '{{ rec.name|e }}', '{{ rec.record_key }}')">✏️ 编辑</button>
+                        <form action="{{ url_for('admin.delete_recorder', recorder_id=rec.id) }}" method="post" style="display:inline;" onsubmit="return confirm('删除录入员「{{ rec.name }}」? 将同时移除其在所有活动中的分配。')">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-danger btn-sm">🗑️ 删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" style="text-align:center;color:#999;padding:40px;">暂无录入员</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% if pages > 1 %}
+        <div style="text-align:center;margin-top:15px;">
+            {% for pg in range(1, pages+1) %}
+                {% if pg == page %}<span style="display:inline-block;padding:6px 12px;margin:0 3px;background:#5b86e5;color:#fff;border-radius:4px;font-weight:bold;">{{ pg }}</span>
+                {% elif pg <= 3 or pg > pages-3 or (pg >= page-1 and pg <= page+1) %}<a href="?page={{ pg }}" style="display:inline-block;padding:6px 12px;margin:0 3px;background:#f0f0f0;color:#333;border-radius:4px;text-decoration:none;">{{ pg }}</a>
+                {% elif pg == 4 or pg == pages-3 %}<span style="padding:6px 8px;color:#999;">...</span>{% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div id="editModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:white;border-radius:12px;padding:28px;max-width:400px;width:90%;">
+        <h3 style="margin:0 0 16px 0;font-size:16px;">编辑录入员</h3>
+        <form id="editForm" method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>姓名</label>
+                <input type="text" class="form-control" name="name" id="editName" required placeholder="录入员姓名">
+            </div>
+            <div class="form-group">
+                <label>KEY（4位数字）</label>
+                <input type="text" class="form-control" name="record_key" id="editKey" required pattern="[0-9]{4}" maxlength="4" style="font-family:monospace;font-size:1.2em;text-align:center;letter-spacing:4px;" placeholder="0000">
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">✕ 取消</button>
+                <button type="submit" class="btn btn-primary">💾 保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openEditModal(id, name, key){
+    document.getElementById('editForm').action='/admin/recorder/'+id+'/edit';
+    document.getElementById('editName').value=name;
+    document.getElementById('editKey').value=key;
+    document.getElementById('editModal').style.display='flex';
+}
+function closeEditModal(){
+    document.getElementById('editModal').style.display='none';
+}
+document.getElementById('editModal').addEventListener('click', function(e){
+    if(e.target===this) closeEditModal();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,621 @@
+{% extends "base.html" %}
+{% block extra_css %}
+<style>
+/* ===== 侧边栏布局 ===== */
+.admin-layout {
+    display: flex;
+    min-height: 100vh;
+    background: transparent;
+}
+
+/* ===== 侧边栏 ===== */
+.sidebar {
+    width: 240px;
+    background:
+        linear-gradient(180deg, rgba(37,99,235,0.16), rgba(37,99,235,0) 180px),
+        var(--admin-sidebar);
+    color: var(--admin-sidebar-text);
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 1000;
+    transition: transform 0.3s ease;
+    box-shadow: none;
+    border-right: 1px solid rgba(255,255,255,0.08);
+}
+
+.sidebar-header {
+    padding: 22px 20px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    text-align: left;
+}
+
+.sidebar-header h2 {
+    color: #fff;
+    font-size: 1.1em;
+    font-weight: 800;
+    margin: 0;
+    letter-spacing: 0;
+}
+
+.sidebar-header .subtitle {
+    font-size: 0.7em;
+    color: #91a1bb;
+    margin-top: 3px;
+}
+
+.sidebar-nav {
+    flex: 1;
+    padding: 8px 0;
+    overflow-y: auto;
+}
+
+.sidebar-nav a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 20px;
+    color: var(--admin-sidebar-text);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 650;
+    transition: all 0.15s ease;
+    border-left: 3px solid transparent;
+}
+
+.sidebar-nav a:hover {
+    background: rgba(255,255,255,0.07);
+    color: #fff;
+}
+
+.sidebar-nav a.active {
+    background: rgba(37,99,235,0.22);
+    color: #fff;
+    border-left-color: var(--admin-primary);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+}
+
+.sidebar-nav a .icon {
+    font-size: 16px;
+    width: 22px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.sidebar-footer {
+    padding: 14px 20px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    font-size: 13px;
+    color: #91a1bb;
+}
+
+.sidebar-footer .user-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #b7c3d6;
+}
+
+/* ===== 主内容区 ===== */
+.main-content {
+    flex: 1;
+    margin-left: 240px;
+    min-height: 100vh;
+    width: calc(100% - 240px);
+    max-width: 100%;
+}
+
+/* 顶部移动端栏 */
+.top-bar {
+    display: none;
+    background: var(--admin-sidebar);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    padding: 10px 16px;
+    align-items: center;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+}
+
+.top-bar .hamburger {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+}
+
+.top-bar .top-title {
+    color: #fff;
+    font-size: 15px;
+    font-weight: 600;
+    flex: 1;
+}
+
+/* ===== 遮罩层（移动端） ===== */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.4);
+    z-index: 999;
+}
+
+/* ===== Tab 导航自适应 ===== */
+.tab-nav {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 20px;
+    border-bottom: 2px solid var(--admin-primary);
+    flex-wrap: wrap;
+}
+
+.tab-nav a {
+    display: inline-block;
+    padding: 12px 24px;
+    text-decoration: none;
+    color: var(--muted);
+    font-weight: 600;
+    border-radius: 8px 8px 0 0;
+    transition: all .2s;
+    font-size: 15px;
+    white-space: nowrap;
+}
+
+.tab-nav a:hover {
+    color: var(--admin-primary);
+    background: #eef3ff;
+}
+
+.tab-nav a.active {
+    background: var(--admin-primary);
+    color: #fff;
+}
+
+.tab-nav a .badge-tab {
+    display: inline-block;
+    background: rgba(255,255,255,.25);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 12px;
+    margin-left: 4px;
+}
+
+.tab-nav a.active .badge-tab {
+    background: rgba(255,255,255,.35);
+}
+
+/* ===== 面包屑标签栏 ===== */
+.tab-bar {
+    display: flex;
+    align-items: center;
+    background: #edf2f8;
+    border-bottom: 1px solid var(--border);
+    padding: 0 8px;
+    min-height: 40px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    gap: 2px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    flex-shrink: 0;
+}
+.tab-bar .tab-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px 7px 14px;
+    font-size: 13px;
+    color: var(--muted);
+    text-decoration: none;
+    border-radius: 6px 6px 0 0;
+    white-space: nowrap;
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-bottom: none;
+    transition: all .15s;
+    position: relative;
+    flex-shrink: 0;
+    user-select: none;
+}
+.tab-bar .tab-item:hover {
+    background: #e4ebf5;
+    color: var(--text);
+}
+.tab-bar .tab-item.active {
+    background: #fff;
+    color: var(--admin-primary);
+    border-color: var(--border);
+    font-weight: 600;
+    box-shadow: 0 -1px 0 rgba(15,23,42,0.04);
+}
+.tab-bar .tab-item .tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    font-size: 12px;
+    line-height: 1;
+    color: #999;
+    transition: all .15s;
+    flex-shrink: 0;
+}
+.tab-bar .tab-item .tab-close:hover {
+    background: #ddd;
+    color: #333;
+}
+.tab-bar .tab-item.active .tab-close:hover {
+    background: #e8ecf4;
+}
+.tab-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 4px;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+.tab-actions .tab-action-btn {
+    background: none;
+    border: none;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+.tab-actions .tab-action-btn:hover {
+    background: #e4ebf5;
+    color: var(--text);
+}
+
+/* ===== 响应式 ===== */
+@media (max-width: 768px) {
+    .sidebar {
+        transform: translateX(-100%);
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+    }
+
+    .sidebar-overlay.show {
+        display: block;
+    }
+
+    .main-content {
+        margin-left: 0;
+        width: 100%;
+    }
+
+    .top-bar {
+        display: flex;
+    }
+
+    /* Tab 导航移动端 */
+    .tab-nav {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        gap: 2px;
+        padding-bottom: 2px;
+    }
+    .tab-nav a {
+        padding: 10px 14px;
+        font-size: 13px;
+        flex-shrink: 0;
+    }
+    .tab-nav a .badge-tab {
+        font-size: 11px;
+        padding: 1px 6px;
+    }
+    /* Tab 右侧操作栏换行 */
+    .tab-nav > div:last-child {
+        margin-left: 0 !important;
+        width: 100%;
+        justify-content: flex-start !important;
+        padding: 6px 0 2px;
+        gap: 4px !important;
+        flex-wrap: wrap;
+    }
+    .tab-nav > div:last-child .btn {
+        font-size: 12px;
+        padding: 5px 10px;
+    }
+
+    /* 标签栏移动端 */
+    .tab-bar {
+        min-height: 34px;
+        padding: 0 4px;
+        font-size: 12px;
+    }
+    .tab-bar .tab-item {
+        padding: 5px 7px 5px 10px;
+        font-size: 12px;
+    }
+    .tab-bar .tab-item .tab-close {
+        width: 16px;
+        height: 16px;
+        font-size: 10px;
+    }
+    .tab-actions .tab-action-btn {
+        font-size: 10px;
+        padding: 3px 5px;
+    }
+
+    /* 卡片和容器铺满 */
+    .container {
+        padding: 8px !important;
+    }
+    .card {
+        padding: 12px !important;
+        border-radius: 10px !important;
+    }
+    .card h2 {
+        font-size: 15px !important;
+    }
+
+    /* 表格滚动 */
+    .table-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin: 0 -4px;
+    }
+    .table-wrap table {
+        min-width: 520px;
+    }
+    table th,
+    table td {
+        padding: 8px 6px !important;
+        font-size: 12px !important;
+    }
+    table .btn-sm {
+        padding: 4px 7px !important;
+        font-size: 11px !important;
+    }
+
+    /* 表单 */
+    .form-control {
+        font-size: 14px !important;
+        padding: 10px 12px !important;
+    }
+    select.form-control {
+        font-size: 13px !important;
+    }
+
+    /* 筛选栏换行 */
+    .card > form,
+    [style*=\"display:flex\"] {
+        flex-wrap: wrap !important;
+    }
+
+    /* 统计卡片 */
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8px !important;
+    }
+    .stat-card {
+        padding: 12px !important;
+    }
+    .stat-card h3 {
+        font-size: 1.2em !important;
+    }
+
+    /* 弹窗 */
+    [style*=\"position:fixed\"][style*=\"z-index:9999\"] > div {
+        padding: 20px !important;
+        max-width: 94% !important;
+    }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 遮罩层 -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+<!-- 移动端顶栏 -->
+<div class="top-bar">
+    <button class="hamburger" onclick="toggleSidebar()" aria-label="切换菜单">☰</button>
+    <span class="top-title">{% block admin_title %}管理后台{% endblock %}</span>
+</div>
+
+<div class="admin-layout">
+    <!-- ===== 侧边栏 ===== -->
+    <aside class="sidebar" id="adminSidebar">
+        <div class="sidebar-header">
+            <h2>活动成绩管理</h2>
+            <div class="subtitle">管理系统</div>
+        </div>
+
+        <nav class="sidebar-nav">
+            <a href="{{ url_for('admin.departments') }}"
+               class="{% if request.endpoint and request.endpoint.startswith('admin.department') %}active{% endif %}">
+                <span class="icon">🏢</span> 部门管理
+            </a>
+            <!-- 项目管理（父导航） -->
+            <div style="padding:14px 20px 4px;font-size:12px;font-weight:700;color:#91a1bb;text-transform:uppercase;letter-spacing:0;border-top:1px solid rgba(255,255,255,0.08);margin-top:4px;">
+                📁 项目管理
+            </div>
+            <a href="{{ url_for('admin.categories') }}"
+               class="{% if request.endpoint in ('admin.categories','admin.create_category','admin.edit_category','admin.delete_category') %}active{% endif %}"
+               style="padding-left:44px;font-size:13px;">
+                <span class="icon" style="width:18px;font-size:13px;">📂</span> 项目分组
+            </a>
+            <a href="{{ url_for('admin.project_list') }}"
+               class="{% if request.endpoint in ('admin.project_list','admin.create_project','admin.edit_project') %}active{% endif %}"
+               style="padding-left:44px;font-size:13px;">
+                <span class="icon" style="width:18px;font-size:13px;">📁</span> 项目列表
+            </a>
+            <!-- 活动管理（父导航） -->
+            <div style="padding:14px 20px 4px;font-size:12px;font-weight:700;color:#91a1bb;text-transform:uppercase;letter-spacing:0;border-top:1px solid rgba(255,255,255,0.08);margin-top:4px;">
+                📋 活动管理
+            </div>
+            <a href="{{ url_for('admin.activity_types') }}"
+               class="{% if request.endpoint and request.endpoint.startswith('admin.activity_type') %}active{% endif %}"
+               style="padding-left:44px;font-size:13px;">
+                <span class="icon" style="width:18px;font-size:13px;">🏷️</span> 活动类型
+            </a>
+            <a href="{{ url_for('admin.admin') }}"
+               class="{% if request.endpoint in ('admin.admin','admin.activity_detail','admin.activity_ranking','admin.qr_print','admin.export_results') %}active{% endif %}"
+               style="padding-left:44px;font-size:13px;">
+                <span class="icon" style="width:18px;font-size:13px;">📋</span> 活动列表
+            </a>
+            <a href="{{ url_for('admin.archived_activities') }}"
+               class="{% if request.endpoint == 'admin.archived_activities' %}active{% endif %}"
+               style="padding-left:44px;font-size:13px;">
+                <span class="icon" style="width:18px;font-size:13px;">🗄️</span> 归档活动
+            </a>
+            <a href="{{ url_for('admin.recorder_list') }}"
+               class="{% if request.endpoint == 'admin.recorder_list' %}active{% endif %}">
+                <span class="icon">👤</span> 录入员管理
+            </a>
+            <a href="{{ url_for('auth.admin_account') }}"
+               class="{% if request.endpoint and request.endpoint.startswith('auth.admin_account') %}active{% endif %}">
+                <span class="icon">🔑</span> 账户管理
+            </a>
+            <a href="{{ url_for('admin.system_logs') }}"
+               class="{% if request.endpoint == 'admin.system_logs' %}active{% endif %}">
+                <span class="icon">📋</span> 系统日志
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="user-info">
+                <span>👤</span>
+                <span>{% if admin() %}{{ admin().username }}{% else %}未登录{% endif %}</span>
+                <a href="{{ url_for('auth.logout') }}" style="margin-left:auto;color:#c8d2e2;text-decoration:none;font-size:13px;" title="退出登录">🚪 退出</a>
+            </div>
+        </div>
+    </aside>
+
+    <!-- ===== 主内容区 ===== -->
+    <main class="main-content">
+        <div class="tab-bar" id="tabBar"></div>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div style="padding:10px 20px 0;">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }}" style="margin-bottom:10px;cursor:pointer;" onclick="this.remove()">{{ message }}</div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        {% block admin_content %}{% endblock %}
+    </main>
+</div>
+
+<script>
+function toggleSidebar() {
+    document.getElementById('adminSidebar').classList.toggle('open');
+    document.getElementById('sidebarOverlay').classList.toggle('show');
+}
+
+// 点击侧边栏链接后自动关闭（移动端）
+document.querySelectorAll('.sidebar-nav a').forEach(function(link) {
+    link.addEventListener('click', function() {
+        if (window.innerWidth <= 768) {
+            toggleSidebar();
+        }
+    });
+});
+
+function escHtml(s){ if(!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escAttr(s){ return String(s||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ===== 标签栏管理 =====
+(function(){
+    var STORAGE_KEY = '_admin_tabs';
+    var MAX_TABS = 15;
+
+    function getTabs(){
+        try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }catch(e){ return []; }
+    }
+    function saveTabs(tabs){
+        try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(tabs)); }catch(e){}
+    }
+
+    // 获取当前页面信息
+    var pageTitle = document.title.replace(' - 活动成绩管理系统', '').trim();
+    var currentUrl = window.location.pathname + window.location.search;
+
+    // 注册当前页面为标签
+    var tabs = getTabs();
+    // 删除重复的同一网址
+    tabs = tabs.filter(function(t){ return t.url !== currentUrl; });
+    // 添加当前页
+    tabs.push({url: currentUrl, title: pageTitle || '管理后台', time: Date.now()});
+    // 限制数量
+    if(tabs.length > MAX_TABS) tabs = tabs.slice(tabs.length - MAX_TABS);
+    saveTabs(tabs);
+
+    // 渲染标签栏
+    function renderTabs(){
+        var bar = document.getElementById('tabBar');
+        if(!bar) return;
+        var tabs = getTabs();
+        var html = '';
+        for(var i = 0; i < tabs.length; i++){
+            var t = tabs[i];
+            var active = t.url === currentUrl ? ' active' : '';
+            html += '<a class="tab-item' + active + '" href="' + escAttr(t.url) + '" data-index="' + i + '">';
+            html += '<span>' + escHtml(t.title) + '</span>';
+            html += '<span class="tab-close" onclick="event.preventDefault();event.stopPropagation();closeTab(' + i + ')" title="关闭标签">✕</span>';
+            html += '</a>';
+        }
+        // 操作按钮
+        html += '<div class="tab-actions">';
+        if(tabs.length > 1){
+            html += '<button class="tab-action-btn" onclick="closeOtherTabs()" title="关闭其他标签">关闭其他</button>';
+            html += '<button class="tab-action-btn" onclick="closeAllTabs()" title="关闭全部">全部关闭</button>';
+        }
+        html += '</div>';
+        bar.innerHTML = html;
+        // 滚动到激活标签
+        var activeEl = bar.querySelector('.tab-item.active');
+        if(activeEl) activeEl.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+    }
+
+    window.closeTab = function(index){
+        var tabs = getTabs();
+        var removed = tabs.splice(index, 1)[0];
+        saveTabs(tabs);
+        // 如果关闭的是当前页，跳转到最后一个标签
+        if(removed.url === currentUrl && tabs.length > 0){
+            window.location.href = tabs[tabs.length - 1].url;
+        } else {
+            renderTabs();
+        }
+    };
+
+    window.closeOtherTabs = function(){
+        var tabs = getTabs();
+        var current = tabs.filter(function(t){ return t.url === currentUrl; });
+        saveTabs(current);
+        renderTabs();
+    };
+
+    window.closeAllTabs = function(){
+        saveTabs([]);
+        renderTabs();
+    };
+
+    renderTabs();
+})();
+</script>
+{% endblock %}

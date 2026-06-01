@@ -1,0 +1,20 @@
+[Unit]
+Description=Activity Score Management System
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/www/wwwroot/yytxk
+Environment=DB_HOST=localhost
+Environment=DB_USER=[Please Enter] 
+Environment=DB_PASSWORD=[Please Enter]
+Environment=DB_NAME=[Please Enter]
+Environment=SECRET_KEY=[Please Enter]
+Environment=ADMIN_PASSWORD=[Please Enter]
+ExecStart=/www/wwwroot/yytxk/venv/bin/gunicorn -w 4 -b 127.0.0.1:5000 run:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

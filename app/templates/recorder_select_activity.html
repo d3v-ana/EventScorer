@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}选择活动 - {{ recorder.name }}{% endblock %}
+{% block content %}
+<div class="event-page">
+<div class="header"><div class="container"><h1>选择活动</h1><p style="color:rgba(255,255,255,0.8);text-align:center;">录入员: {{ recorder.name }} <a href="{{ url_for('recorder.recorder_logout') }}" style="color:#fff;text-decoration:underline;margin-left:10px;">退出</a></p></div></div>
+<div class="container">
+    <div class="card" style="max-width:500px;margin:0 auto;">
+        <h2>请选择要录入的活动</h2>
+        <p style="color:#666;">您被分配到多个活动，请选择一个开始录入成绩。</p>
+        {% if activities %}
+        <form action="{{ url_for('recorder.recorder_set_activity', recorder_id=recorder.id) }}" method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            {% for activity in activities %}
+            <button type="submit" name="activity_id" value="{{ activity.id }}" class="btn btn-primary" style="display:block;width:100%;text-align:left;padding:15px 20px;margin-bottom:10px;font-size:1.1em;">
+                {{ activity.name }}
+                <span class="badge {% if activity.is_student %}badge-student{% else %}badge-staff{% endif %}" style="float:right;">{{ activity.user_type_display }}</span>
+            </button>
+            {% endfor %}
+        </form>
+        {% else %}
+        <p style="text-align:center;padding:20px;color:#999;">暂无可用活动</p>
+        {% endif %}
+    </div>
+</div>
+</div>
+{% endblock %}

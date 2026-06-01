@@ -1,0 +1,62 @@
+{% extends "admin_base.html" %}
+{% block title %}{% if project %}编辑项目{% else %}创建项目{% endif %}{% endblock %}
+{% block admin_title %}{% if project %}编辑项目{% else %}创建项目{% endif %}{% endblock %}
+{% block admin_content %}
+<div class="container">
+    <div class="card">
+        <h2>项目信息</h2>
+        <form method="post" enctype="multipart/form-data">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group">
+                <label>项目名称</label>
+                <input type="text" class="form-control" name="name" value="{{ project.name if project else '' }}" required>
+            </div>
+            <div class="form-group">
+                <label>项目类型</label>
+                <select class="form-control" name="type" id="projType" onchange="toggleMaxScore()">
+                    {% for key, label in project_types %}
+                    <option value="{{ key }}" {% if project and project.type==key %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" id="maxScoreGroup" style="{% if not project or project.type!='score' %}display:none;{% endif %}">
+                <label>最大分值</label>
+                <input type="number" class="form-control" name="max_score" value="{{ project.max_score if project and project.max_score else 100 }}" step="0.1" min="0" placeholder="不填则不限制">
+            </div>
+            <div class="form-group" id="penaltyGroup" style="{% if project and project_type(project.type).input_mode=='score' %}display:none;{% endif %}">
+                <label>犯规罚时(秒/次)</label>
+                <input type="number" class="form-control" name="penalty" value="{{ project.penalty_per_violation if project else 2.0 }}" step="0.1" min="0" required>
+            </div>
+            <div class="form-group">
+                <label>项目分组</label>
+                <select class="form-control" name="category_id">
+                    <option value="">无分组</option>
+                    {% for c in categories %}
+                    <option value="{{ c.id }}" {% if project and project.category_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>规则文件</label>
+                <input type="file" class="form-control" name="rule_file" accept=".pdf,.doc,.docx,.txt,.jpg,.png">
+                {% if project and project.rule_file %}<p style="margin-top:5px;"><a href="/{{ project.rule_file }}" target="_blank">📄 当前规则文件</a></p>{% endif %}
+            </div>
+            <div class="form-group">
+                <label>视频文件</label>
+                <input type="file" class="form-control" name="video_file" accept=".mp4,.avi,.mov">
+                {% if project and project.video_file %}<p style="margin-top:5px;"><a href="/{{ project.video_file }}" target="_blank">🎬 当前视频文件</a></p>{% endif %}
+            </div>
+            <button type="submit" class="btn btn-primary">{% if project %}💾 保存修改{% else %}➕ 创建项目{% endif %}</button>
+        </form>
+    </div>
+</div>
+{% block extra_js %}
+<script>
+function toggleMaxScore(){
+    var type=document.getElementById('projType').value;
+    document.getElementById('maxScoreGroup').style.display=(type==='score')?'':'none';
+    document.getElementById('penaltyGroup').style.display=(type==='score')?'none':'';
+}
+</script>
+{% endblock %}
+{% endblock %}

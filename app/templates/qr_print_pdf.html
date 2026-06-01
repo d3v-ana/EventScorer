@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: sans-serif; padding: 10mm; }
+.page { display: flex; flex-wrap: wrap; }
+.qr-item {
+    width: 23%;
+    margin: 1%;
+    text-align: center;
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    padding: 6px;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+.qr-item.used { border-color: #4caf50; background: #f0fff0; }
+.qr-item img { width: 100%; max-width: 120px; }
+.qr-item .code { font-weight: bold; font-size: 11px; margin-top: 4px; letter-spacing: 1px; }
+.qr-item .name { font-size: 9px; color: #666; margin-top: 2px; }
+.qr-item .participant-name { font-size: 11px; font-weight: bold; color: #2e7d32; margin-top: 3px; }
+.qr-item .participant-class { font-size: 10px; color: #555; }
+@media print {
+    @page { margin: 8mm; }
+    body { padding: 0; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+{% for item in qr_list %}
+{% set qr = item.qr %}
+{% set p = item.participant %}
+<div class="qr-item{% if qr.status == 'used' %} used{% endif %}">
+    <img src="{{ url_for('static',filename='qrcodes/'+qr.id|string+'.png') }}" alt="QR">
+    <div class="code">{{ qr.code }}</div>
+    {% if p %}
+    <div class="participant-name">{{ p.name }}</div>
+    {% if p.class_name %}<div class="participant-class">{{ p.class_name }}</div>{% endif %}
+    {% endif %}
+    <div class="name">{{ activity.name }}</div>
+</div>
+{% endfor %}
+</div>
+</body>
+</html>

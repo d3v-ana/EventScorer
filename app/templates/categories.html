@@ -1,0 +1,75 @@
+{% extends "admin_base.html" %}
+{% block title %}分组管理{% endblock %}
+{% block admin_title %}分组管理{% endblock %}
+{% block admin_content %}
+<div class="container">
+    <div class="card">
+        <h2>创建分组</h2>
+        <form action="{{ url_for('admin.create_category') }}" method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;">
+                <div class="form-group" style="flex:1;min-width:200px;margin-bottom:0;">
+                    <input type="text" class="form-control" name="name" required placeholder="分组名称（如：心理游园，运动会）">
+                </div>
+                <button type="submit" class="btn btn-success">➕ 创建分组</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>分组列表 ({{ categories|length }})</h2>
+        {% if categories %}
+        <div class="table-wrap category-list-table-wrap">
+        <table class="category-list-table">
+            <thead><tr><th>名称</th><th>项目数</th><th>创建时间</th><th>操作</th></tr></thead>
+            <tbody>
+                {% for c in categories %}
+                {% set has_data = c.projects|length > 0 %}
+                <tr>
+                    <td><strong>{{ c.name }}</strong></td>
+                    <td>{{ c.projects|length }}</td>
+                    <td>{{ c.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td style="white-space:nowrap;">
+                        <button class="btn btn-primary btn-sm" onclick="openEditModal('{{ url_for('admin.edit_category', category_id=c.id) }}', '{{ c.name }}')">✏️ 编辑</button>
+                        <form action="{{ url_for('admin.delete_category', category_id=c.id) }}" method="post" style="display:inline;" onsubmit="return confirm('确定删除分组「{{ c.name }}」?')">
+                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                            <button class="btn btn-danger btn-sm" {% if has_data %}disabled style="opacity:0.4;cursor:not-allowed;" title="该分组下有{{ c.projects|length }}个项目，无法删除"{% endif %}>🗑️ 删除</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% else %}<p style="text-align:center;padding:40px;color:#666;">暂无分组，请在上方创建</p>{% endif %}
+    </div>
+</div>
+
+<!-- 编辑弹窗 -->
+<div id="editModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:400px;width:90%;">
+        <h3 style="margin:0 0 16px 0;font-size:16px;">编辑名称</h3>
+        <form id="editForm" method="post">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div class="form-group" style="margin-bottom:16px;">
+                <input type="text" class="form-control" id="editNameInput" name="name" required style="font-size:16px;padding:12px;">
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">✕ 取消</button>
+                <button type="submit" class="btn btn-primary">💾 保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function openEditModal(actionUrl, name){
+    document.getElementById('editForm').action = actionUrl;
+    document.getElementById('editNameInput').value = name;
+    document.getElementById('editModal').style.display = 'flex';
+}
+function closeEditModal(){
+    document.getElementById('editModal').style.display = 'none';
+}
+</script>
+{% endblock %}

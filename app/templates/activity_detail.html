@@ -1,0 +1,449 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ activity.name }} - 活动详情{% endblock %}
+{% block admin_title %}活动详情{% endblock %}
+{% block extra_css %}
+{{ super() }}
+<style>
+.tab-nav{display:flex;gap:4px;margin-bottom:20px;border-bottom:3px solid #667eea;flex-wrap:wrap;}
+.tab-nav a{display:inline-block;padding:12px 24px;text-decoration:none;color:#666;font-weight:600;border-radius:8px 8px 0 0;transition:all .2s;font-size:15px;}
+.tab-nav a:hover{color:#667eea;background:#f0f0ff;}
+.tab-nav a.active{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;}
+.tab-nav a .badge-tab{display:inline-block;background:rgba(255,255,255,.25);padding:2px 8px;border-radius:10px;font-size:12px;margin-left:4px;}
+.tab-nav a.active .badge-tab{background:rgba(255,255,255,.35);}
+.tab-content{display:none;}
+.tab-content.active{display:block;}
+</style>
+{% endblock %}
+{% block admin_content %}
+<div class="container">
+    <div class="stats-grid">
+        <div class="stat-card"><h3>{{ projects|length }}</h3><p>活动项目</p></div>
+        <div class="stat-card"><h3>{{ all_qrcodes|length }}</h3><p>二维码总数</p></div>
+        <div class="stat-card"><h3>{{ used_count }}</h3><p>已注册</p></div>
+        <div class="stat-card"><h3>{{ activity.user_type_display }}</h3><p>用户类型</p></div>
+    </div>
+
+    <div class="tab-nav">
+        <a href="#tab-projects" class="active" data-tab="tab-projects">活动项目 <span class="badge-tab">{{ projects|length }}</span></a>
+        <a href="#tab-qrcodes" data-tab="tab-qrcodes">二维码 <span class="badge-tab">{{ qr_total }}</span></a>
+        <a href="#tab-recorders" data-tab="tab-recorders">录入员 <span class="badge-tab">{{ activity_recorders|length }}</span></a>
+        <a href="#tab-participants" data-tab="tab-participants">参赛者 <span class="badge-tab">{{ p_total }}</span></a>
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+            <a href="{{ url_for('admin.activity_ranking',activity_id=activity.id) }}" class="btn btn-info btn-sm" target="_parent">🏆 排名</a>
+            <a href="{{ url_for('admin.qr_print',activity_id=activity.id) }}" class="btn btn-success btn-sm" target="_parent">🖨️ 打印二维码</a>
+            <a href="{{ url_for('admin.export_results',activity_id=activity.id) }}" class="btn btn-info btn-sm" target="_parent">📤 导出</a>
+        </div>
+    </div>
+
+    <!-- ==================== 活动项目 ==================== -->
+    <div id="tab-projects" class="tab-content active">
+        <div class="card">
+            <h2>活动项目</h2>
+            {% if projects %}
+            <table>
+                <thead><tr><th>项目名称</th><th>罚时/满分</th><th>规则</th><th>视频</th><th>操作</th></tr></thead>
+                <tbody>
+                    {% for project in projects %}
+                    <tr>
+                        <td><strong>{{ project.name }}</strong></td>
+                        <td>{% if project.type == 'score' %}{{ project.max_score or '-' }}分{% else %}{{ project.penalty_per_violation }}秒/次{% endif %}</td>
+                        <td>{% if project.rule_file %}<a href="/{{ project.rule_file }}" target="_blank">📥 下载</a>{% else %}-{% endif %}</td>
+                        <td>{% if project.video_file %}<a href="/{{ project.video_file }}" target="_blank">👁️ 查看</a>{% else %}-{% endif %}</td>
+                        <td>
+                            <a href="{{ url_for('admin.edit_project',project_id=project.id) }}" class="btn btn-primary btn-sm">✏️ 编辑</a>
+                            {% if not activity.archived %}<form action="{{ url_for('admin.activity_remove_project',activity_id=activity.id,project_id=project.id) }}" method="post" style="display:inline;" onsubmit="return confirm('从活动中移除此项目?')"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-danger btn-sm">🗑️ 移除</button>
+                            </form>{% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}<p style="color:#666;">暂无关联项目</p>{% endif %}
+            {% if not activity.archived %}<form action="{{ url_for('admin.activity_add_project',activity_id=activity.id) }}" method="post" style="display:flex;gap:10px;margin-top:10px;align-items:end;flex-wrap:wrap;"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <div class="form-group" style="min-width:180px;margin-bottom:0;">
+                    <label style="font-size:13px;">项目分组</label>
+                    <select class="form-control" id="addProjectCategoryFilter" onchange="filterAddProjectOptions()">
+                        <option value="all">全部分组</option>
+                        <option value="0">未分组</option>
+                        {% for c in categories %}
+                        <option value="{{ c.id }}">{{ c.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group" style="flex:1;margin-bottom:0;">
+                    <label style="font-size:13px;">选择项目</label>
+                    <select class="form-control" name="project_id" id="addProjectSelect">
+                        <option value="">选择要添加的项目...</option>
+                        {% for p in all_projects %}
+                            {% if p.id not in projects|map(attribute='id')|list %}<option value="{{ p.id }}" data-category-id="{{ p.category_id or 0 }}">{{ p.name }} {% if project_type(p.type).input_mode == 'score' %}(满{{ p.max_score or '-' }}分){% else %}(罚{{ p.penalty_per_violation }}s){% endif %}</option>{% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success btn-sm">➕ 添加项目</button>
+            </form>{% endif %}
+        </div>
+    </div>
+
+    <!-- ==================== 二维码 ==================== -->
+    <div id="tab-qrcodes" class="tab-content">
+        <div class="card">
+            <h2>批量生成参赛二维码</h2>
+            {% if not activity.archived %}<div style="display:flex;gap:10px;align-items:end;">
+                <div class="form-group" style="flex:1;max-width:200px;margin-bottom:0;">
+                    <input type="number" class="form-control" id="qrCount" value="10" min="1" max="500" placeholder="数量">
+                </div>
+                <button class="btn btn-success" onclick="generateQRCodes()">➕ 生成二维码</button>
+            </div>
+            <details style="margin-top:10px;">
+                <summary style="cursor:pointer;color:#667eea;font-weight:600;font-size:14px;">⚙️ 自定义词库（配置两个词生成二维码，便于参赛者记忆）</summary>
+                <div style="margin-top:10px;">
+                    <p style="color:#666;font-size:13px;margin:0 0 8px 0;">
+                        逐个添加词，二维码 Code 将生成「词-数字」格式（如 红狐-0734）。
+                    </p>
+                    <div id="wordTagList" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;max-width:450px;">
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input type="text" id="wordInput" class="form-control" style="max-width:160px;" placeholder="输入词">
+                        <button class="btn btn-success btn-sm" onclick="addWord()">➕ 添加</button>
+                        <button class="btn btn-primary btn-sm" onclick="saveWords()">💾 保存词库</button>
+                        <span id="wordsSaveMsg" style="font-size:13px;"></span>
+                    </div>
+                </div>
+            </details>{% endif %}
+            <script>
+            var savedWords = {% if activity.custom_words %}{{ activity.custom_words|tojson|safe }}{% else %}''{% endif %};
+            var rawList = savedWords ? savedWords.split('\n').filter(function(w){return w.trim();}) : [];
+            var wordList = [];
+            var seen={};for(var i=0;i<rawList.length;i++){if(!seen[rawList[i]]){seen[rawList[i]]=true;wordList.push(rawList[i]);}}
+            function renderWords(){
+                var container=document.getElementById('wordTagList');
+                container.innerHTML='';
+                if(wordList.length===0){container.innerHTML='<span style="color:#999;font-size:13px;">暂无自定义词，请添加</span>';return;}
+                for(var i=0;i<wordList.length;i++){
+                    (function(idx){
+                        var tag=document.createElement('span');
+                        tag.style.cssText='display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:#e8f0fe;border-radius:12px;font-size:13px;';
+                        tag.innerHTML=wordList[idx]+' <span style="cursor:pointer;color:#999;font-weight:bold;" onclick="removeWord('+idx+')">×</span>';
+                        container.appendChild(tag);
+                    })(i);
+                }
+            }
+            function addWord(){
+                var input=document.getElementById('wordInput');
+                var w=input.value.trim();
+                if(!w){return;}
+                if(wordList.indexOf(w)!==-1){input.value='';return;}
+                wordList.push(w);
+                input.value='';
+                input.focus();
+                renderWords();
+            }
+            function removeWord(idx){
+                wordList.splice(idx,1);
+                renderWords();
+            }
+            renderWords();
+            </script>
+            <div id="qrResult" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px;"></div>
+        </div>
+        <div class="card">
+            <h2>二维码列表 ({{ qr_total }})</h2>
+            <form method="get" id="qrSearchForm" style="display:flex;gap:10px;margin-bottom:15px;flex-wrap:wrap;align-items:end;">
+                <input type="hidden" name="tab" value="tab-qrcodes">
+                <input type="hidden" name="p_page" value="{{ p_page }}"><input type="hidden" name="p_search" value="{{ p_search }}">
+                <div class="form-group" style="flex:1;min-width:150px;margin-bottom:0;">
+                    <input type="text" class="form-control" name="qr_search" value="{{ qr_search }}" placeholder="搜索二维码Code...">
+                </div>
+                <div class="form-group" style="flex:1;min-width:150px;margin-bottom:0;">
+                    <input type="text" class="form-control" name="qr_name_search" value="{{ qr_name_search }}" placeholder="搜索参与者姓名...">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">🔍 搜索</button>
+                {% if qr_search or qr_name_search %}<a href="?tab=tab-qrcodes&p_page={{ p_page }}&p_search={{ p_search }}" class="btn btn-info btn-sm">↺ 清除</a>{% endif %}
+            </form>
+            <table>
+                <thead><tr><th>编号</th><th>二维码</th><th>Code</th><th>状态</th><th>绑定参赛者</th></tr></thead>
+                <tbody>
+                    {% for qr in qrcodes %}
+                    <tr>
+                        <td>{{ (qr_page-1)*15 + loop.index }}</td>
+                        <td><img src="{{ url_for('static',filename='qrcodes/'+qr.id|string+'.png') }}" width="50" height="50" alt="QR" style="border:1px solid #ddd;border-radius:4px;"></td>
+                        <td><strong>{{ qr.code }}</strong></td>
+                        <td>{% if qr.status=='used' %}<span style="color:green;">已注册</span>{% else %}<span style="color:#999;">未使用</span>{% endif %}</td>
+                        <td>{% if qr.participant %}{{ qr.participant.name }}{% else %}-{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if qr_pages > 1 %}
+            <div style="text-align:center;margin-top:15px;">
+                {% for pg in range(1, qr_pages+1) %}
+                    {% if pg == qr_page %}<span style="display:inline-block;padding:6px 12px;margin:0 3px;background:#667eea;color:#fff;border-radius:4px;font-weight:bold;">{{ pg }}</span>
+                    {% elif pg <= 3 or pg > qr_pages-3 or (pg >= qr_page-1 and pg <= qr_page+1) %}<a href="?tab=tab-qrcodes&qr_page={{ pg }}&qr_search={{ qr_search }}&qr_name_search={{ qr_name_search }}&p_page={{ p_page }}&p_search={{ p_search }}" style="display:inline-block;padding:6px 12px;margin:0 3px;background:#f0f0f0;color:#333;border-radius:4px;text-decoration:none;">{{ pg }}</a>
+                    {% elif pg == 4 or pg == qr_pages-3 %}<span style="padding:6px 8px;color:#999;">...</span>{% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- ==================== 录入员 ==================== -->
+    <div id="tab-recorders" class="tab-content">
+        <div class="card">
+            <h2>已分配录入员</h2>
+            <p><a href="{{ url_for('admin.recorder_list') }}" class="btn btn-info btn-sm">⚙️ 管理全局录入员</a></p>
+            {% if activity_recorders %}
+            <table><thead><tr><th>姓名</th><th>KEY</th><th>可录入项目</th><th>操作</th></tr></thead>
+                <tbody>{% for ar in activity_recorders %}<tr>
+                    <td>{{ ar.recorder.name }}</td>
+                    <td><code style="background:#f0f0f0;padding:3px 8px;border-radius:4px;">{{ ar.recorder.record_key }}</code></td>
+                    <td style="max-width:300px;">
+                        {% set assigned_pids = ar.project_id_list() %}
+                        {% if assigned_pids %}
+                            {% for pid in assigned_pids %}{% for p in projects %}{% if p.id==pid %}<span class="project-tag">{{ p.name }}</span>{% endif %}{% endfor %}{% endfor %}
+                        {% else %}<span style="color:#999;">未分配项目</span>{% endif %}
+                        {% if not activity.archived %}
+                        <button class="btn btn-primary btn-sm" data-ar-id="{{ ar.id }}" data-recorder-name="{{ ar.recorder.name|e }}" data-project-ids="{{ ar.project_ids }}" onclick="editRecorderProjects(this)" style="margin-left:5px;">✏️ 编辑项目</button>
+                        {% endif %}
+                    </td>
+                    <td>{% if not activity.archived %}<form action="{{ url_for('admin.remove_activity_recorder',ar_id=ar.id) }}" method="post" style="display:inline;" onsubmit="return confirm('从该活动移除录入员「{{ ar.recorder.name }}」?')"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-danger btn-sm">🗑️ 移除</button></form>{% endif %}</td>
+                </tr>{% endfor %}</tbody></table>
+            {% else %}<p style="color:#666;padding:20px 0;">尚未分配录入员</p>{% endif %}
+        </div>
+
+        {% if not activity.archived %}
+        <div class="card">
+            <h2>分配录入员到本活动</h2>
+            <form action="{{ url_for('admin.assign_recorder_to_activity', activity_id=activity.id) }}" method="post"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:end;">
+                    <div class="form-group" style="flex:1;min-width:200px;margin-bottom:0;">
+                        <select class="form-control" name="recorder_id" required>
+                            <option value="">选择录入员...</option>
+                            {% for rec in all_recorders %}
+                                {% if rec.id not in activity_recorders|map(attribute='recorder_id')|list %}
+                                <option value="{{ rec.id }}">{{ rec.name }} (KEY: {{ rec.record_key }})</option>
+                                {% endif %}
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex:2;min-width:200px;margin-bottom:0;">
+                        <label style="font-weight:600;display:block;margin-bottom:5px;">可录入项目</label>
+                        <div style="display:flex;flex-wrap:wrap;gap:5px;">
+                            {% for project in projects %}
+                            <label style="font-weight:normal;cursor:pointer;"><input type="checkbox" name="project_ids" value="{{ project.id }}"> {{ project.name }}</label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success btn-sm" style="margin-bottom:0;">➕ 分配录入员</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- 编辑项目弹窗 -->
+        <div id="editProjectsModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;">
+            <div style="background:white;border-radius:12px;padding:30px;max-width:500px;width:90%;">
+                <h3 style="margin:0 0 15px 0;">编辑项目权限 - <span id="editRecorderName"></span></h3>
+                <form id="editProjectsForm" method="post">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px;">
+                        {% for project in projects %}
+                        <label style="font-weight:normal;cursor:pointer;display:flex;align-items:center;gap:4px;"><input type="checkbox" name="project_ids" value="{{ project.id }}" class="edit-project-cb"> {{ project.name }}</label>
+                        {% endfor %}
+                    </div>
+                    <div style="display:flex;gap:10px;justify-content:flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('editProjectsModal').style.display='none'">✕ 取消</button>
+                        <button type="submit" class="btn btn-primary">💾 保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script>
+        function editRecorderProjects(btn){
+            var arId = btn.getAttribute('data-ar-id');
+            var name = btn.getAttribute('data-recorder-name');
+            var projectIdsStr = btn.getAttribute('data-project-ids');
+            document.getElementById('editRecorderName').textContent=name;
+            document.getElementById('editProjectsForm').action='/admin/activity-recorder/'+arId+'/update-projects';
+            var ids=projectIdsStr ? projectIdsStr.split(',').map(function(x){return parseInt(x);}) : [];
+            document.querySelectorAll('.edit-project-cb').forEach(function(cb){
+                cb.checked=ids.indexOf(parseInt(cb.value))>=0;
+            });
+            document.getElementById('editProjectsModal').style.display='flex';
+        }
+        </script>
+        {% endif %}
+    </div>
+
+    <!-- ==================== 参赛者 ==================== -->
+    <div id="tab-participants" class="tab-content">
+        <div class="card">
+            <h2>参赛者列表 ({{ p_total }})</h2>
+            <form method="get" id="pSearchForm" style="display:flex;gap:10px;margin-bottom:15px;align-items:end;">
+                <input type="hidden" name="tab" value="tab-participants">
+                <input type="hidden" name="qr_page" value="{{ qr_page }}"><input type="hidden" name="qr_search" value="{{ qr_search }}">
+                <div class="form-group" style="flex:1;max-width:300px;margin-bottom:0;">
+                    <input type="text" class="form-control" name="p_search" value="{{ p_search }}" placeholder="搜索姓名或班级...">
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">🔍 搜索</button>
+                {% if p_search %}<a href="?tab=tab-participants&qr_page={{ qr_page }}&qr_search={{ qr_search }}" class="btn btn-info btn-sm">↺ 清除</a>{% endif %}
+
+                <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('addParticipantModal').style.display='block'">➕ 添加参赛者</button>
+                <button type="button" class="btn btn-info btn-sm" onclick="document.getElementById('batchImportModal').style.display='block'">📥 批量导入</button>
+            </div>
+            </form>
+            
+            <!-- 添加参赛者弹窗 -->
+            <div id="addParticipantModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:1000;" onclick="if(event.target===this)this.style.display='none'">
+                <div style="background:#fff;margin:10% auto;max-width:420px;padding:24px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+                    <h3 style="margin:0 0 16px;">➕ 手动添加参赛者</h3>
+                    <form method="post" action="{{ url_for('admin.admin_add_participant', activity_id=activity.id) }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <div class="form-group">
+                            <label>姓名 <span style="color:red;">*</span></label>
+                            <input type="text" name="name" class="form-control" required placeholder="输入参赛者姓名">
+                        </div>
+                        <div class="form-group">
+                            <label>班级</label>
+                            <input type="text" name="class_name" class="form-control" placeholder="可选">
+                        </div>
+                        <div class="form-group">
+                            <label>选择二维码 <span style="color:red;">*</span></label>
+                            <select name="qrcode_id" class="form-control" required>
+                                <option value="">-- 请选择 --</option>
+                                {% for q in unused_qrcodes %}
+                                <option value="{{ q.id }}">{{ q.code }}</option>
+                                {% endfor %}
+                            </select>
+                            {% if not unused_qrcodes %}<p style="color:#999;font-size:12px;margin-top:4px;">暂无未使用的二维码，请先在「二维码」tab 中生成</p>{% endif %}
+                        </div>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('addParticipantModal').style.display='none'">取消</button>
+                            <button type="submit" class="btn btn-primary" {% if not unused_qrcodes %}disabled{% endif %}>添加</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- 批量导入弹窗 -->
+            <div id="batchImportModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.4);z-index:1000;" onclick="if(event.target===this)this.style.display='none'">
+                <div style="background:#fff;margin:10% auto;max-width:500px;padding:24px;border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,0.15);">
+                    <h3 style="margin:0 0 16px;">📥 批量导入参赛者</h3>
+                    <form method="post" action="{{ url_for('admin.admin_batch_import_participants', activity_id=activity.id) }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <div class="form-group">
+                            <label>参赛者名单 <span style="color:red;">*</span></label>
+                            <textarea name="participants_text" class="form-control" rows="8" placeholder="每行一个参赛者&#10;格式：姓名,班级 或 仅姓名&#10;&#10;示例：&#10;张三,一班&#10;李四,二班&#10;王五"></textarea>
+                            <p style="color:#999;font-size:12px;margin-top:4px;">可用二维码剩余：<strong>{{ unused_qrcodes|length }}</strong> 个</p>
+                        </div>
+                        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('batchImportModal').style.display='none'">取消</button>
+                            <button type="submit" class="btn btn-primary" {% if not unused_qrcodes %}disabled{% endif %}>开始导入</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            {% if participant_data %}
+            <div style="overflow-x:auto;"><table><thead><tr><th>序号</th><th>姓名</th>{% for f in registration_fields if f.key != 'name' %}<th>{% if f.key == 'class_name' %}班级{% else %}{{ f.label }}{% endif %}</th>{% endfor %}{% for project in projects %}<th>{{ project.name }}</th>{% endfor %}{% if has_score and has_time %}<th>用时</th><th>分数</th>{% elif all_score %}<th>总成绩</th>{% else %}<th>总用时</th>{% endif %}<th style="min-width:90px;">操作</th></tr></thead>
+                {% for data in participant_data %}<tr>
+                    <td>{{ (p_page-1)*15 + loop.index }}</td>
+                    <td><strong>{{ data.participant.name }}</strong></td>
+                    {% for f in registration_fields if f.key != 'name' %}<td>{% if f.key == 'class_name' %}{{ data.participant.class_name or '-' }}{% else %}{{ data.extra.get(f.key, '-') }}{% endif %}</td>{% endfor %}
+                    {% for project in projects %}<td>{% if project.id in data.result_map %}{% if project_type(project.type).input_mode=='score' %}{{ data.result_map[project.id]|scorefmt }}{% else %}{{ data.result_map[project.id]|timefmt }}{% endif %}{% else %}-{% endif %}</td>{% endfor %}
+                    {% if has_score and has_time %}<td><strong>{{ data.time_total|timefmt }}</strong></td><td><strong>{{ data.score_total|scorefmt }}</strong></td>{% elif all_score %}<td><strong>{{ data.total_time|scorefmt }}</strong></td>{% else %}<td><strong>{{ data.total_time|timefmt }}</strong></td>{% endif %}
+                    <td>
+                        <a href="{{ url_for('admin.participant_history', participant_id=data.participant.id) }}" class="btn btn-info btn-sm">📋 历史</a>
+                        {% if not activity.archived %}<form action="{{ url_for('admin.delete_participant',participant_id=data.participant.id) }}" method="post" onsubmit='return confirm({{ ("确定删除参赛者「" ~ data.participant.name ~ "」及其已录入成绩吗？")|tojson }})' style="display:inline;"><input type="hidden" name="_csrf_token" value="{{ csrf_token() }}"><button class="btn btn-danger btn-sm">🗑️ 删除</button></form>{% endif %}
+                    </td>
+                </tr>{% endfor %}</table></div>
+            {% if p_pages > 1 %}
+            <div style="text-align:center;margin-top:15px;">
+                {% for pg in range(1, p_pages+1) %}
+                    {% if pg == p_page %}<span style="display:inline-block;padding:6px 12px;margin:0 3px;background:#667eea;color:#fff;border-radius:4px;font-weight:bold;">{{ pg }}</span>
+                    {% elif pg <= 3 or pg > p_pages-3 or (pg >= p_page-1 and pg <= p_page+1) %}<a href="?tab=tab-participants&qr_page={{ qr_page }}&qr_search={{ qr_search }}&p_page={{ pg }}&p_search={{ p_search }}" style="display:inline-block;padding:6px 12px;margin:0 3px;background:#f0f0f0;color:#333;border-radius:4px;text-decoration:none;">{{ pg }}</a>
+                    {% elif pg == 4 or pg == p_pages-3 %}<span style="padding:6px 8px;color:#999;">...</span>{% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% else %}<p style="text-align:center;padding:40px;color:#666;">暂无参赛者</p>{% endif %}
+        </div>
+    </div>
+</div>
+{% block extra_js %}
+<script>
+(function(){
+    function getTabHash(){var m=location.hash.match(/tab-(\w+)/);return m?'tab-'+m[1]:'tab-projects';}
+    function switchTab(tabId){
+        document.querySelectorAll('.tab-content').forEach(function(el){el.classList.remove('active');});
+        document.querySelectorAll('.tab-nav a').forEach(function(el){el.classList.remove('active');});
+        var content=document.getElementById(tabId);if(content)content.classList.add('active');
+        var link=document.querySelector('[data-tab="'+tabId+'"]');if(link)link.classList.add('active');
+        if(history.pushState)history.pushState(null,'','#'+tabId);
+    }
+    document.querySelectorAll('.tab-nav a[data-tab]').forEach(function(a){
+        a.addEventListener('click',function(e){e.preventDefault();switchTab(this.dataset.tab);});
+    });
+    var urlParams=new URLSearchParams(location.search);
+    var tabParam=urlParams.get('tab');
+    var initialTab=tabParam||getTabHash();
+    switchTab(initialTab);
+})();
+
+function filterAddProjectOptions(){
+    var filter=document.getElementById('addProjectCategoryFilter');
+    var select=document.getElementById('addProjectSelect');
+    if(!filter||!select)return;
+    var value=filter.value;
+    var firstVisible='';
+    Array.prototype.forEach.call(select.options,function(option){
+        if(!option.value){
+            option.hidden=false;
+            option.disabled=false;
+            return;
+        }
+        var category=option.getAttribute('data-category-id')||'0';
+        var visible=value==='all'||category===value;
+        option.hidden=!visible;
+        option.disabled=!visible;
+        if(visible&&!firstVisible)firstVisible=option.value;
+    });
+    if(select.value&&select.options[select.selectedIndex]&&select.options[select.selectedIndex].disabled){
+        select.value='';
+    }
+}
+filterAddProjectOptions();
+
+function generateQRCodes(){
+    var count=document.getElementById('qrCount').value;
+    var csrf='{{ csrf_token() }}';
+    fetch("{{ url_for('admin.generate_qrcodes',activity_id=activity.id) }}",{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':csrf},body:'count='+count+'&_csrf_token='+encodeURIComponent(csrf)})
+    .then(r=>r.json()).then(data=>{
+        if(data.success===false){
+            if(data.error && data.error.indexOf('词库')>=0){
+                if(confirm(data.error+'\n\n是否前往配置词库？')){
+                    var summary=document.querySelector('details summary');
+                    if(summary) summary.closest('details').open=true;
+                }
+            }else{
+                alert(data.error || '生成失败');
+            }
+            return;
+        }
+        alert('已生成 '+data.qrcodes.length+' 个二维码');
+        location.reload();
+    }).catch(function(err){alert('请求失败: '+err.message);});
+}
+
+function saveWords(){
+    var words=wordList.join('\n');
+    var csrf='{{ csrf_token() }}';
+    var msg=document.getElementById('wordsSaveMsg');
+    fetch("{{ url_for('admin.save_qrcode_words',activity_id=activity.id) }}",{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','X-CSRF-Token':csrf},body:'words='+encodeURIComponent(words)+'&_csrf_token='+encodeURIComponent(csrf)})
+    .then(r=>r.json()).then(data=>{
+        if(data.success){msg.textContent='✅ 已保存';msg.style.color='green';}else{msg.textContent='❌ '+data.error;msg.style.color='red';}
+    }).catch(function(){msg.textContent='❌ 保存失败';msg.style.color='red';});
+}
+</script>
+{% endblock %}
+{% endblock %}

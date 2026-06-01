@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+{% block title %}{{ activity.name }} - 录入成绩{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/recorder.css') }}">
+{% endblock %}
+{% block content %}
+<div class="event-page">
+<div class="header">
+    <div class="container">
+        <h1>{{ activity.name }}<span class="badge {% if activity.is_student %}badge-student{% else %}badge-staff{% endif %}">{{ activity.user_type_display }}</span></h1>
+        <p style="color:rgba(255,255,255,0.8);text-align:center;">录入员: {{ recorder.name }} <a href="{{ url_for('recorder.recorder_logout') }}" style="color:#fff;text-decoration:underline;margin-left:10px;">退出</a></p>
+    </div>
+</div>
+<div class="container">
+    <div class="card">
+        <h2>扫描参赛者二维码</h2>
+        <div style="text-align:center;">
+            <button class="btn btn-primary scan-toggle" id="scanToggleBtn" onclick="toggleScanner()">打开摄像头扫描</button>
+            <button class="btn btn-info scan-toggle" id="stopScanBtn" style="display:none;" onclick="stopScanner()">关闭摄像头</button>
+        </div>
+        <div id="qr-reader" style="display:none;"></div>
+        <div style="margin-top:15px;">
+            <label>或手动输入二维码Code</label>
+            <div style="display:flex;gap:10px;">
+                {% if words_json != '[]' %}<select id="wordSelect" class="form-control" style="max-width:110px;" onchange="onWordSelect()">
+                    <option value="">选词</option>
+                </select>{% endif %}
+                <input type="text" class="form-control" id="scanCode" placeholder="输入CODE" autofocus>
+                <button class="btn btn-primary" onclick="lookupParticipant()">查询</button>
+            </div>
+        </div>
+        <div id="scanResult" style="margin-top:15px;"></div>
+    </div>
+
+    <div id="inputArea" style="display:none;">
+        <div class="card">
+            <h2>录入成绩 - <span id="participantName"></span></h2>
+            <form id="resultForm">
+                <input type="hidden" id="participantId">
+
+                <div class="form-group">
+                    <label>项目</label>
+                    <select class="form-control" id="projectId" name="project_id" required style="font-size:1.1em;">
+                        <option value="">请选择</option>
+                        {% for p in allowed_projects %}
+                        <option value="{{ p.id }}" data-penalty="{{ p.penalty_per_violation }}" data-type="{{ project_type(p.type).input_mode }}">{{ p.name }} {% if project_type(p.type).input_mode == 'score' %}(满分{{ p.max_score or '-' }}分){% else %}(罚{{ p.penalty_per_violation }}s/次){% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div id="timeModeArea">
+                <div class="form-group">
+                    <label>用时 <small style="color:#999;font-weight:normal;">(开始计时或手动输入)</small></label>
+                    <div class="stopwatch-display" id="stopwatchDisplay">0:00.000</div>
+                    <div style="display:flex;gap:10px;margin-top:10px;justify-content:center;">
+                        <button type="button" class="btn btn-primary" id="startBtn" onclick="startStopwatch()" style="font-size:1.2em;padding:12px 30px;">开始计时</button>
+                        <button type="button" class="btn btn-danger" id="stopBtn" onclick="stopStopwatch()" style="font-size:1.2em;padding:12px 30px;" disabled>结束计时</button>
+                        <button type="button" class="btn btn-secondary" id="resetBtn" onclick="resetStopwatch()" style="font-size:1.2em;padding:12px 20px;">重置</button>
+                    </div>
+                    <details style="margin-top:12px;">
+                        <summary style="cursor:pointer;color:#667eea;font-weight:600;font-size:13px;">⏱️ 手动输入</summary>
+                        <div style="margin-top:10px;">
+                        <div style="display:flex;gap:8px;align-items:center;">
+                            <input type="number" class="form-control" id="timeMin" value="0" min="0" max="999" style="width:80px;font-size:1.3em;text-align:center;font-family:monospace;" inputmode="numeric">
+                            <span style="font-size:1.3em;color:#999;">分</span>
+                            <input type="text" class="form-control" id="timeInput" value="0" style="font-size:1.4em;font-family:monospace;text-align:center;flex:1;" inputmode="decimal" placeholder="秒.毫秒 如 5.783" autocomplete="off">
+                        </div>
+                        <div class="time-display" style="margin-top:10px;">
+                            <span class="label">解析结果</span>
+                            <span id="parsedTime">0:00.000</span>
+                        </div>
+                        </div>
+                    </details>
+                </div>
+
+                <div class="form-group">
+                    <label>犯规次数</label>
+                    <div class="violation-row">
+                        <button type="button" class="adj-btn" onclick="adjViolation(-1)">−</button>
+                        <input type="number" class="form-control" id="violations" name="violations" min="0" value="0" style="font-size:1.4em;font-family:monospace;text-align:center;">
+                        <button type="button" class="adj-btn" onclick="adjViolation(1)">+</button>
+                    </div>
+                </div>
+
+                <div class="result-item" style="background:#e8eaf6;border-left-color:#3f51b5;">
+                    <h4>计算结果</h4>
+                    <div class="preview-row" style="grid-template-columns:1fr 1fr;">
+                        <div><span class="lbl">用时</span><span class="val" id="calcRaw">0:00.000</span></div>
+                        <div><span class="lbl">罚时</span><span class="val" id="calcPenalty">0:00.000</span></div>
+                    </div>
+                    <div class="preview-row" style="grid-template-columns:1fr;margin-top:8px;">
+                        <div style="background:#e3f2fd;border-radius:8px;padding:12px;"><span class="lbl">最终</span><span class="val" style="color:#f45c43;font-size:1.6em;" id="calcFinal">0:00.000</span></div>
+                    </div>
+                </div>
+
+                </div> <!-- end timeModeArea -->
+
+                <div id="scoreModeArea" style="display:none;">
+                    <div class="form-group">
+                        <label>成绩（分数）</label>
+                        <input type="number" class="form-control" id="scoreInput" name="score" min="0" step="0.1" style="font-size:1.4em;font-family:monospace;text-align:center;" placeholder="输入分数">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-success" style="width:100%;font-size:1.2em;padding:15px;margin-top:10px;">提交成绩</button>
+                <div id="submitMsg" style="margin-top:10px;"></div>
+            </form>
+        </div>
+    </div>
+</div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="{{ url_for('static', filename='js/recorder.js') }}"></script>
+<script>
+var csrfToken='{{ csrf_token() }}';
+var recorderId={{ recorder.id }};
+var projectTypes = {{ project_types_json|safe }};
+var wordsList = {{ words_json|safe }};
+var html5QrCode=null;
+var currentCode='';
+
+function getProjectMode(sel){
+    var fromBackend=projectTypes[sel.value];
+    if(fromBackend)return fromBackend;
+    var opt=sel.options[sel.selectedIndex];
+    return opt?opt.dataset.type:'time';
+}
+
+var LAST_PROJECT_KEY='recorder_last_project_'+recorderId;
+var savedProject=localStorage.getItem(LAST_PROJECT_KEY);
+if(savedProject)document.getElementById('projectId').value=savedProject;
+setRecorderProjectKey(LAST_PROJECT_KEY);
+
+function switchInputMode(){
+    var sel=document.getElementById('projectId');
+    var mode=getProjectMode(sel);
+    document.getElementById('timeModeArea').style.display=(mode==='score'?'none':'');
+    document.getElementById('scoreModeArea').style.display=(mode==='score'?'':'none');
+}
+
+document.getElementById('projectId').addEventListener('change',function(){
+    if(this.value)localStorage.setItem(LAST_PROJECT_KEY,this.value);
+    switchInputMode();
+    calcPreview();
+});
+document.getElementById('timeMin').addEventListener('change',function(){getTime('timeMin','timeInput','parsedTime');calcPreview();});
+document.getElementById('timeInput').addEventListener('input',function(){getTime('timeMin','timeInput','parsedTime');calcPreview();});
+document.getElementById('violations').addEventListener('input',calcPreview);
+switchInputMode();
+calcPreview();
+
+// === 扫描 ===
+function toggleScanner(){
+    document.getElementById('qr-reader').style.display='block';
+    document.getElementById('scanToggleBtn').style.display='none';
+    document.getElementById('stopScanBtn').style.display='inline-block';
+    if(!html5QrCode)html5QrCode=new Html5Qrcode('qr-reader');
+    html5QrCode.start({facingMode:'environment'},{fps:10,qrbox:250},
+        function(decodedText){
+            var raw=decodedText.trim();
+            var m=raw.match(/register\/(.+)/);
+            var code=m?m[1]:raw;
+            document.getElementById('scanCode').value=code;
+            lookupParticipant();
+            html5QrCode.stop().then(function(){
+                document.getElementById('qr-reader').style.display='none';
+                document.getElementById('scanToggleBtn').style.display='inline-block';
+                document.getElementById('stopScanBtn').style.display='none';
+            });
+        },function(){}
+    ).catch(function(err){
+        document.getElementById('scanResult').innerHTML='<div class="alert alert-warning">摄像头无法启动，请手动输入二维码下方的 CODE</div>';
+        stopScanner();
+    });
+}
+
+function stopScanner(){
+    if(html5QrCode){html5QrCode.stop().catch(function(){});}
+    document.getElementById('qr-reader').style.display='none';
+    document.getElementById('scanToggleBtn').style.display='inline-block';
+    document.getElementById('stopScanBtn').style.display='none';
+}
+
+function lookupParticipant(){
+    var code=document.getElementById('scanCode').value.trim();
+    if(!code)return;
+    fetch('/api/participant/by_code?code='+code)
+    .then(r=>r.json()).then(handleLookup);
+}
+
+function handleLookup(data){
+    var div=document.getElementById('scanResult');
+    if(data.success){
+        currentCode=data.qr_code||document.getElementById('scanCode').value.trim();
+        var extraHtml='';
+        if(data.extra){for(var ek in data.extra){extraHtml+=' <span style="color:#666;margin-left:8px;">'+data.extra[ek]+'</span>';}}
+        div.innerHTML='<div class="alert alert-success">已找到: <strong>'+data.participant_name+'</strong> ('+(data.class_name||'')+')'+extraHtml+'</div>';
+        document.getElementById('participantName').textContent=data.participant_name;
+        document.getElementById('participantId').value=data.participant_id;
+        document.getElementById('inputArea').style.display='block';
+        document.getElementById('scanCode').value='';
+        var saved=localStorage.getItem(LAST_PROJECT_KEY);
+        if(saved)document.getElementById('projectId').value=saved;
+        switchInputMode();
+        document.getElementById('timeMin').value='0';
+        document.getElementById('timeInput').value='0';
+        document.getElementById('violations').value='0';
+        document.getElementById('scoreInput').value='';
+        resetStopwatch();
+        getTime('timeMin','timeInput','parsedTime');
+        calcPreview();
+        var mode=getProjectMode(document.getElementById('projectId'));
+        setTimeout(function(){
+            if(mode==='score'){document.getElementById('scoreInput').focus();document.getElementById('scoreInput').select();}
+            else{document.getElementById('timeInput').focus();document.getElementById('timeInput').select();}
+        },200);
+    }else{div.innerHTML='<div class="alert alert-danger">'+data.error+'</div>';}
+}
+
+// 填充词库下拉（仅用户配置了词库时，前端去重）
+(function(){
+    var sel=document.getElementById('wordSelect');
+    if(!sel)return;
+    var seen={};
+    for(var i=0;i<wordsList.length;i++){
+        if(seen[wordsList[i]])continue;
+        seen[wordsList[i]]=true;
+        var opt=document.createElement('option');opt.value=wordsList[i];opt.textContent=wordsList[i];sel.appendChild(opt);
+    }
+})();
+
+function onWordSelect(){
+    var sel=document.getElementById('wordSelect');
+    if(!sel)return;
+    var input=document.getElementById('scanCode');
+    if(sel.value){input.value=sel.value+'-';input.focus();}
+}
+
+document.getElementById('scanCode').addEventListener('keydown',function(e){if(e.key==='Enter')lookupParticipant();});
+
+document.getElementById('resultForm').addEventListener('submit',function(e){
+    e.preventDefault();
+    var pid=document.getElementById('projectId').value;
+    if(!pid){alert('请选择项目');return;}
+    var sel=document.getElementById('projectId');
+    var mode=getProjectMode(sel);
+    var fd=new FormData();
+    fd.append('project_id',pid);
+    fd.append('_csrf_token', csrfToken);
+    if(mode==='score'){
+        var score=document.getElementById('scoreInput').value;
+        if(!score||parseFloat(score)<=0){alert('请输入成绩');return;}
+        fd.append('score',score);
+    }else{
+        if(stopwatchRunning){alert('请先结束计时');return;}
+        var raw=getTime('timeMin','timeInput','parsedTime');
+        if(raw<=0){alert('用时不能为0，请先计时');return;}
+        var intSec=Math.floor(raw);
+        var min=Math.floor(intSec/60);
+        var sec=intSec%60;
+        var ms=Math.round((raw-intSec)*1000);
+        fd.append('time_minutes',min);
+        fd.append('time_seconds',sec);
+        fd.append('time_ms',ms);
+        fd.append('violations',document.getElementById('violations').value);
+    }
+    var url='/recorder/'+recorderId+'/input/'+encodeURIComponent(currentCode);
+    fetch(url,{method:'POST',body:fd,headers:{'X-CSRF-Token':csrfToken}})
+    .then(r=>r.json()).then(function(data){
+        if(data.success){
+            showSuccessOverlay(data.final_time, mode, recorderId);
+        }else{
+            document.getElementById('submitMsg').innerHTML='<div class="alert alert-danger">'+ (data.error||'录入失败') +'</div>';
+        }
+    });
+});
+</script>
+{% endblock %}
