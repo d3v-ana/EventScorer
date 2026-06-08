@@ -5,7 +5,7 @@ from app.models import (
     Admin, Activity, ActivityType, Project, ActivityProject,
     Participant, Recorder, ActivityRecorder, Result, QRCode
 )
-from werkzeug.security import generate_password_hash
+from app.security import hash_password
 
 
 class TestActivityRecorderModel:
@@ -45,10 +45,11 @@ class TestActivityRecorderModel:
 
 class TestAdminModel:
     def test_create_admin(self, ctx):
-        a = Admin(username='testadmin', password_hash=generate_password_hash('test123'))
+        a = Admin(email='testadmin@example.com', username='testadmin',
+                  role='tenant_admin', password_hash=hash_password('test123'))
         db.session.add(a)
         db.session.commit()
-        saved = Admin.query.filter_by(username='testadmin').first()
+        saved = Admin.query.filter_by(email='testadmin@example.com').first()
         assert saved is not None
         assert saved.username == 'testadmin'
 

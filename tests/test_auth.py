@@ -9,7 +9,7 @@ class TestLogin:
 
     def test_login_success(self, client):
         resp = client.post('/login', data={
-            'username': 'admin',
+            'email': 'tenant@example.com',
             'password': 'admin'
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -17,7 +17,7 @@ class TestLogin:
 
     def test_login_wrong_password(self, client):
         resp = client.post('/login', data={
-            'username': 'admin',
+            'email': 'tenant@example.com',
             'password': 'wrong'
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -26,7 +26,7 @@ class TestLogin:
 
     def test_login_wrong_username(self, client):
         resp = client.post('/login', data={
-            'username': 'nobody',
+            'email': 'nobody@example.com',
             'password': 'admin'
         }, follow_redirects=True)
         assert resp.status_code == 200
@@ -38,7 +38,7 @@ class TestLogout:
     def test_logout(self, client):
         # Login first
         client.post('/login', data={
-            'username': 'admin',
+            'email': 'tenant@example.com',
             'password': 'admin'
         })
         resp = client.get('/logout', follow_redirects=True)

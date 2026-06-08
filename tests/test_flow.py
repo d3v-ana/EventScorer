@@ -14,7 +14,7 @@ class TestFullFlow:
         assert resp.status_code == 200
 
         resp = client.post('/login', data={
-            'username': 'admin', 'password': 'admin',
+            'email': 'tenant@example.com', 'password': 'admin',
         }, follow_redirects=True)
         assert resp.status_code == 200
         html = resp.data.decode('utf-8')

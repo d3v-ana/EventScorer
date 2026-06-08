@@ -1,4 +1,5 @@
 venv/
+.venv/
 instance/
 *.db
 uploads/rules/

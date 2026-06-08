@@ -49,6 +49,7 @@ def participant_register(code):
                 if val:
                     extra[key] = val
         participant = Participant(
+            tenant_id=qr.tenant_id,
             name=name,
             class_name=class_name,
             activity_id=activity.id,

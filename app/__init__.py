@@ -33,8 +33,9 @@ def create_app(config_name='config.Config'):
 
     # Register Jinja2 globals/filters
     from .project_types import get_project_type
-    from .utils import get_admin, format_time, format_score, generate_csrf_token
+    from .utils import get_admin, get_current_tenant, format_time, format_score, generate_csrf_token
     app.jinja_env.globals['admin'] = get_admin
+    app.jinja_env.globals['current_tenant'] = get_current_tenant
     app.jinja_env.globals['csrf_token'] = generate_csrf_token
     app.jinja_env.globals['project_type'] = get_project_type
     app.jinja_env.filters['timefmt'] = format_time
@@ -64,23 +65,65 @@ def create_app(config_name='config.Config'):
         from flask import send_from_directory
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-    # Init DB + default admin + default activity types
-    with app.app_context():
-        from .models import Admin, ActivityType
-        from werkzeug.security import generate_password_hash
-        db.create_all()
-        if not Admin.query.first():
-            default_pw = os.environ.get('ADMIN_PASSWORD', secrets.token_hex(8))
-            db.session.add(Admin(username='admin', password_hash=generate_password_hash(default_pw)))
-            db.session.commit()
-            logger.info(f'默认管理员: admin / {default_pw}')
-        # Seed default activity types
-        if not ActivityType.query.first():
+    def _needs_saas_rebuild():
+        inspector = db.inspect(db.engine)
+        if not inspector.has_table('admin'):
+            return False
+        admin_cols = {col['name'] for col in inspector.get_columns('admin')}
+        return 'email' not in admin_cols or 'role' not in admin_cols
+
+    def _seed_platform_templates():
+        from .models import ActivityType, Department, ProjectCategory
+        if not ActivityType.query.filter_by(is_template=True, tenant_id=None).first():
             for name in ('学生', '教职工'):
-                at = ActivityType(name=name, sort_order=0)
+                at = ActivityType(name=name, sort_order=0, is_template=True)
                 at.set_fields(at.get_default_fields())
                 db.session.add(at)
+        if not Department.query.filter_by(is_template=True, tenant_id=None).first():
+            db.session.add(Department(name='体育部', sort_order=0, is_template=True))
+        if not ProjectCategory.query.filter_by(is_template=True, tenant_id=None).first():
+            db.session.add(ProjectCategory(name='默认分组', sort_order=0, is_template=True))
+        db.session.commit()
+
+    def _seed_test_tenant():
+        from .models import Admin, ActivityType, Department, Tenant
+        from .security import hash_password
+        tenant = Tenant.query.filter_by(name='测试学校').first()
+        if not tenant:
+            tenant = Tenant(name='测试学校', tenant_type='school')
+            db.session.add(tenant)
+            db.session.flush()
+        if not Admin.query.filter_by(email='tenant@example.com').first():
+            db.session.add(Admin(email='tenant@example.com', username='测试管理员',
+                                 role='tenant_admin', tenant_id=tenant.id,
+                                 password_hash=hash_password('admin')))
+        if not ActivityType.query.filter_by(tenant_id=tenant.id).first():
+            for name in ('学生', '教职工'):
+                at = ActivityType(tenant_id=tenant.id, name=name, sort_order=0)
+                at.set_fields(at.get_default_fields())
+                db.session.add(at)
+        if not Department.query.filter_by(tenant_id=tenant.id, name='体育部').first():
+            db.session.add(Department(tenant_id=tenant.id, name='体育部', sort_order=0))
+        db.session.commit()
+
+    # Init DB + default platform admin + platform templates
+    with app.app_context():
+        from .models import Admin
+        from .security import hash_password
+        if _needs_saas_rebuild():
+            logger.warning('检测到旧版单租户数据库结构，将按 SaaS 新结构清空重建')
+            db.drop_all()
+        db.create_all()
+        if not Admin.query.filter_by(role='platform_admin').first():
+            default_pw = os.environ.get('ADMIN_PASSWORD', secrets.token_hex(8))
+            default_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
+            db.session.add(Admin(email=default_email, username='平台管理员',
+                                 role='platform_admin',
+                                 password_hash=hash_password(default_pw)))
             db.session.commit()
-            logger.info('已创建默认活动类型: 学生, 教职工')
+            logger.info(f'默认平台管理员: {default_email} / {default_pw}')
+        if app.config.get('TESTING'):
+            _seed_test_tenant()
+        _seed_platform_templates()
 
     return app

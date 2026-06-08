@@ -9,21 +9,21 @@ class TestAuthBoundary:
     def test_login_empty_password(self, client):
         """空密码登录"""
         resp = client.post('/login', data={
-            'username': 'admin', 'password': '',
+            'email': 'tenant@example.com', 'password': '',
         }, follow_redirects=True)
         assert '错误' in resp.data.decode('utf-8') or 'login' in resp.request.path
 
     def test_login_wrong_password(self, client):
         """错误密码"""
         resp = client.post('/login', data={
-            'username': 'admin', 'password': 'wrongpass',
+            'email': 'tenant@example.com', 'password': 'wrongpass',
         }, follow_redirects=True)
         assert '账号或密码错误' in resp.data.decode('utf-8')
 
     def test_login_nonexistent_user(self, client):
         """不存在的用户"""
         resp = client.post('/login', data={
-            'username': 'nobody', 'password': 'anything',
+            'email': 'nobody@example.com', 'password': 'anything',
         }, follow_redirects=True)
         assert '账号或密码错误' in resp.data.decode('utf-8')
 

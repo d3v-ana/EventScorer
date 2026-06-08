@@ -9,10 +9,19 @@ recorder_bp = Blueprint('recorder', __name__)
 
 def _get_recorder_activity(recorder_id, activity_id):
     """获取录入员在指定活动中的 ActivityRecorder，校验权限"""
+    tenant_id = session.get('recorder_tenant_id')
+    if tenant_id is None:
+        recorder = db.session.get(Recorder, recorder_id)
+        tenant_id = recorder.tenant_id if recorder else None
+        if tenant_id is not None:
+            session['recorder_tenant_id'] = tenant_id
     ar = ActivityRecorder.query.filter_by(
         activity_id=activity_id, recorder_id=recorder_id
     ).first()
     if not ar:
+        return None
+    activity = db.session.get(Activity, activity_id)
+    if not activity or activity.tenant_id != tenant_id:
         return None
     return ar
 
@@ -24,6 +33,10 @@ def _check_recorder_auth(recorder_id):
     recorder = db.session.get(Recorder, recorder_id)
     if not recorder or recorder.record_key != session.get('recorder_key'):
         return None
+    if session.get('recorder_tenant_id') is None:
+        session['recorder_tenant_id'] = recorder.tenant_id
+    if recorder.tenant_id != session.get('recorder_tenant_id'):
+        return None
     return recorder
 
 
@@ -33,14 +46,19 @@ def recorder_login():
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         key = request.form.get('key', '').strip()
-        recorder = Recorder.query.filter_by(name=name, record_key=key).first()
+        matches = Recorder.query.filter_by(name=name, record_key=key).all()
+        if len(matches) > 1:
+            return render_template('recorder_login.html', error='录入员身份不唯一，请联系管理员重置KEY')
+        recorder = matches[0] if matches else None
         if recorder:
             session.permanent = True
             session['recorder_id'] = recorder.id
             session['recorder_key'] = recorder.record_key
+            session['recorder_tenant_id'] = recorder.tenant_id
             # 查该录入员的可用活动
             activities = Activity.query.join(ActivityRecorder).filter(
                 ActivityRecorder.recorder_id == recorder.id,
+                Activity.tenant_id == recorder.tenant_id,
                 Activity.archived == False
             ).all()
             if len(activities) == 1:
@@ -61,6 +79,7 @@ def recorder_select_activity(recorder_id):
         return '权限不足', 403
     activities = Activity.query.join(ActivityRecorder).filter(
         ActivityRecorder.recorder_id == recorder_id,
+        Activity.tenant_id == recorder.tenant_id,
         Activity.archived == False
     ).all()
     return render_template('recorder_select_activity.html', recorder=recorder, activities=activities)
@@ -87,6 +106,7 @@ def recorder_set_activity(recorder_id):
 def recorder_logout():
     session.pop('recorder_id', None)
     session.pop('recorder_key', None)
+    session.pop('recorder_tenant_id', None)
     session.pop('activity_id', None)
     return redirect(url_for('recorder.recorder_login'))
 
@@ -139,6 +159,8 @@ def recorder_input(recorder_id, code):
     if not qr:
         from flask import abort
         abort(404)
+    if qr.tenant_id != recorder.tenant_id:
+        return '权限不足', 403
     participant = Participant.query.filter_by(qrcode_id=qr.id).first_or_404()
     if participant.activity_id != activity_id:
         return '权限不足', 403

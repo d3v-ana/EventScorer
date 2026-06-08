@@ -11,8 +11,8 @@
         <form method="post">
             <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             <div class="form-group">
-                <label>用户名</label>
-                <input type="text" class="form-control" name="username" required>
+                <label>邮箱</label>
+                <input type="email" class="form-control" name="email" required>
             </div>
             <div class="form-group">
                 <label>密码</label>
@@ -20,7 +20,7 @@
             </div>
             <button type="submit" class="btn btn-primary" style="width:100%;">登录</button>
         </form>
-        <p style="text-align:center;margin-top:15px;color:#999;">首次登录默认管理员: admin（密码系统随机生成，请查看控制台输出或设置 ADMIN_PASSWORD 环境变量）</p>
+        <p style="text-align:center;margin-top:15px;color:#999;">首次登录默认平台管理员: admin@example.com（可用 ADMIN_EMAIL / ADMIN_PASSWORD 环境变量覆盖）</p>
     </div>
 </div>
 {% endblock %}

@@ -1,0 +1,70 @@
+{% extends "admin_base.html" %}
+{% block title %}平台模板{% endblock %}
+{% block admin_title %}平台模板{% endblock %}
+{% block admin_content %}
+<div class="container">
+    <div class="card">
+        <h2>平台模板</h2>
+        <p style="color:#666;margin-top:0;">新建学校/单位时会复制这些模板，复制后各租户独立维护。</p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+            <form method="post" action="{{ url_for('admin.platform_create_template_category') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <h3>项目分组</h3>
+                <input class="form-control" name="name" placeholder="分组名称" required>
+                <input class="form-control" name="sort_order" placeholder="排序" value="0" style="margin-top:8px;">
+                <button class="btn btn-success" style="margin-top:8px;">新增分组模板</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.platform_create_template_activity_type') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <h3>活动类型</h3>
+                <input class="form-control" name="name" placeholder="类型名称" required>
+                <input class="form-control" name="sort_order" placeholder="排序" value="0" style="margin-top:8px;">
+                <button class="btn btn-success" style="margin-top:8px;">新增类型模板</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.platform_create_template_department') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <h3>部门</h3>
+                <input class="form-control" name="name" placeholder="部门名称" required>
+                <input class="form-control" name="sort_order" placeholder="排序" value="0" style="margin-top:8px;">
+                <button class="btn btn-success" style="margin-top:8px;">新增部门模板</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.platform_create_template_project') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <h3>项目</h3>
+                <input class="form-control" name="name" placeholder="项目名称" required>
+                <select class="form-control" name="category_id" style="margin-top:8px;">
+                    <option value="">无分组</option>
+                    {% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
+                </select>
+                <select class="form-control" name="type" style="margin-top:8px;">
+                    {% for key,label in project_types %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
+                </select>
+                <input class="form-control" name="penalty" placeholder="犯规罚时" value="5" style="margin-top:8px;">
+                <input class="form-control" name="max_score" placeholder="最大分值" style="margin-top:8px;">
+                <button class="btn btn-success" style="margin-top:8px;">新增项目模板</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>当前模板</h2>
+        <table>
+            <thead><tr><th>类型</th><th>名称</th><th>分组/说明</th></tr></thead>
+            <tbody>
+                {% for item in categories %}
+                <tr><td>项目分组</td><td>{{ item.name }}</td><td>排序 {{ item.sort_order }}</td></tr>
+                {% endfor %}
+                {% for item in projects %}
+                <tr><td>项目</td><td>{{ item.name }}</td><td>{{ item.category.name if item.category else '无分组' }}</td></tr>
+                {% endfor %}
+                {% for item in activity_types %}
+                <tr><td>活动类型</td><td>{{ item.name }}</td><td>排序 {{ item.sort_order }}</td></tr>
+                {% endfor %}
+                {% for item in departments %}
+                <tr><td>部门</td><td>{{ item.name }}</td><td>排序 {{ item.sort_order }}</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -72,7 +72,8 @@ class TestAdminOverview:
                                     created_at=stamp)
             activity_type = ActivityType(name='Date Only Type',
                                          created_at=stamp)
-            admin = Admin(username='dateonly',
+            admin = Admin(email='dateonly@example.com', username='dateonly',
+                          role='tenant_admin',
                           password_hash='unused',
                           created_at=stamp)
             db.session.add_all([category, department, activity_type, admin])
@@ -103,6 +104,7 @@ class TestAdminOverview:
         resp = auth_client.post('/admin/account', data={
             'action': 'create_admin',
             'username': 'freshadmin',
+            'email': 'freshadmin@example.com',
             'password': 'secret123',
             '_csrf_token': 'test',
         })

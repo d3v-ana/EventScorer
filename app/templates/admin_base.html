@@ -195,6 +195,43 @@
     background: rgba(255,255,255,.35);
 }
 
+/* ===== 平台代管提示 ===== */
+.platform-impersonation-banner {
+    margin: 12px 20px 0;
+    padding: 12px 14px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-left: 4px solid #f97316;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #7c2d12;
+    box-shadow: 0 1px 2px rgba(15,23,42,0.06);
+}
+
+.platform-impersonation-banner .banner-title {
+    font-weight: 800;
+    color: #9a3412;
+    margin-bottom: 4px;
+}
+
+.platform-impersonation-banner .banner-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 14px;
+    font-size: 13px;
+}
+
+.platform-impersonation-banner .banner-meta strong {
+    color: #431407;
+}
+
+.platform-impersonation-banner .banner-actions {
+    flex-shrink: 0;
+}
+
 /* ===== 面包屑标签栏 ===== */
 .tab-bar {
     display: flex;
@@ -412,8 +449,14 @@
     .stat-card {
         padding: 12px !important;
     }
-    .stat-card h3 {
+        .stat-card h3 {
         font-size: 1.2em !important;
+    }
+
+    .platform-impersonation-banner {
+        margin: 10px;
+        align-items: stretch;
+        flex-direction: column;
     }
 
     /* 弹窗 */
@@ -440,10 +483,18 @@
     <aside class="sidebar" id="adminSidebar">
         <div class="sidebar-header">
             <h2>活动成绩管理</h2>
-            <div class="subtitle">管理系统</div>
+            <div class="subtitle">{% if current_tenant() %}{{ current_tenant().name }}{% else %}管理系统{% endif %}</div>
         </div>
 
         <nav class="sidebar-nav">
+            {% if admin() and admin().is_platform_admin %}
+            <a href="{{ url_for('admin.platform_tenants') }}">
+                <span class="icon">🏛️</span> 返回平台
+            </a>
+            <a href="{{ url_for('admin.platform_templates') }}">
+                <span class="icon">📦</span> 平台模板
+            </a>
+            {% endif %}
             <a href="{{ url_for('admin.departments') }}"
                class="{% if request.endpoint and request.endpoint.startswith('admin.department') %}active{% endif %}">
                 <span class="icon">🏢</span> 部门管理
@@ -507,6 +558,32 @@
     <!-- ===== 主内容区 ===== -->
     <main class="main-content">
         <div class="tab-bar" id="tabBar"></div>
+        {% if admin() and admin().is_platform_admin and current_tenant() %}
+        <div class="platform-impersonation-banner">
+            <div>
+                <div class="banner-title">平台管理员代管中，请确认当前管理对象</div>
+                <div class="banner-meta">
+                    <span>平台账号：<strong>{{ admin().username }}</strong> / {{ admin().email }}</span>
+                    <span>当前学校/单位：<strong>{{ current_tenant().name }}</strong></span>
+                    <span>类型：{{ '学校' if current_tenant().tenant_type == 'school' else '单位' }}</span>
+                    <span>状态：{{ '启用' if current_tenant().is_active else '停用' }}</span>
+                    <span>租户管理员：
+                        <strong>
+                        {% set tenant_admins = current_tenant().admins|selectattr('role', 'equalto', 'tenant_admin')|list %}
+                        {% if tenant_admins %}
+                            {{ tenant_admins|map(attribute='email')|join('，') }}
+                        {% else %}
+                            暂无
+                        {% endif %}
+                        </strong>
+                    </span>
+                </div>
+            </div>
+            <div class="banner-actions">
+                <a class="btn btn-warning btn-sm" href="{{ url_for('admin.platform_exit_tenant') }}">返回平台租户列表</a>
+            </div>
+        </div>
+        {% endif %}
         {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
         <div style="padding:10px 20px 0;">

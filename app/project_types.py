@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from . import db
-from .models import Result
+from .models import Participant, Result
 from .utils import format_time, safe_float, safe_int
 
 
@@ -22,7 +22,10 @@ class ProjectType:
             project_id=project.id,
         ).first()
         if not result:
-            result = Result(participant_id=participant_id, project_id=project.id)
+            participant = db.session.get(Participant, participant_id)
+            tenant_id = participant.tenant_id if participant else project.tenant_id
+            result = Result(tenant_id=tenant_id,
+                            participant_id=participant_id, project_id=project.id)
             db.session.add(result)
 
         for key, value in values.items():
