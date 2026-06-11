@@ -1,0 +1,40 @@
+<div id="{{ area_id|default('timeModeArea') }}">
+    <div class="form-group">
+        <label>用时 <small style="color:#999;font-weight:normal;">(开始计时或手动输入)</small></label>
+        <div class="stopwatch-display" id="stopwatchDisplay">0:00.000</div>
+        <div style="display:flex;gap:10px;margin-top:10px;justify-content:center;">
+            <button type="button" class="btn btn-primary" id="startBtn" onclick="startStopwatch()" style="font-size:1.2em;padding:12px 30px;">开始计时</button>
+            <button type="button" class="btn btn-danger" id="stopBtn" onclick="stopStopwatch()" style="font-size:1.2em;padding:12px 30px;" disabled>结束计时</button>
+            <button type="button" class="btn btn-secondary" id="resetBtn" onclick="resetStopwatch()" style="font-size:1.2em;padding:12px 20px;">重置</button>
+        </div>
+        <details style="margin-top:12px;">
+            <summary style="cursor:pointer;color:#667eea;font-weight:600;font-size:13px;">⏱️ 手动输入</summary>
+            <div style="margin-top:10px;">
+                <div style="display:flex;gap:8px;align-items:center;">
+                    <input type="number" class="form-control" id="timeMin" value="0" min="0" max="999" style="width:80px;font-size:1.3em;text-align:center;font-family:monospace;" inputmode="numeric">
+                    <span style="font-size:1.3em;color:#999;">分</span>
+                    <input type="text" class="form-control" id="timeInput" value="0" style="font-size:1.4em;font-family:monospace;text-align:center;flex:1;" inputmode="decimal" placeholder="秒.毫秒 如 5.783" autocomplete="off">
+                </div>
+                <div class="time-display" style="margin-top:10px;"><span class="label">解析结果</span><span id="parsedTime">0:00.000</span></div>
+            </div>
+        </details>
+    </div>
+    <div class="form-group">
+        <label>犯规次数</label>
+        <div class="violation-row">
+            <button type="button" class="adj-btn" onclick="adjViolation(-1)">−</button>
+            <input type="number" class="form-control" id="violations" name="violations" min="0" value="0" style="font-size:1.4em;font-family:monospace;text-align:center;">
+            <button type="button" class="adj-btn" onclick="adjViolation(1)">+</button>
+        </div>
+    </div>
+    <div class="result-item" style="background:#e8eaf6;border-left-color:#3f51b5;">
+        <h4>计算结果</h4>
+        <div class="preview-row" style="grid-template-columns:1fr 1fr;">
+            <div><span class="lbl">用时</span><span class="val" id="calcRaw">0:00.000</span></div>
+            <div><span class="lbl">罚时</span><span class="val" id="calcPenalty">0:00.000</span></div>
+        </div>
+        <div class="preview-row" style="grid-template-columns:1fr;margin-top:8px;">
+            <div style="background:#e3f2fd;border-radius:8px;padding:12px;"><span class="lbl">最终</span><span class="val" style="color:#f45c43;font-size:1.6em;" id="calcFinal">0:00.000</span></div>
+        </div>
+    </div>
+</div>

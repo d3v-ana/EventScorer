@@ -26,7 +26,7 @@
                     <td>{% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}{{ loop.index }}{% endif %}</td>
                     <td><strong>{{ data.participant.name }}</strong></td>
                     {% for f in registration_fields if f.key not in ('name',) %}<td>{% if f.key == 'class_name' %}{{ data.participant.class_name or '-' }}{% else %}{{ data.extra.get(f.key, '-') }}{% endif %}</td>{% endfor %}
-                    {% for p in projects %}<td>{% if data.project_results[p.id] is not none %}{% if project_type(p.type).input_mode=='score' %}{{ data.project_results[p.id]|scorefmt }}{% else %}{{ data.project_results[p.id]|timefmt }}{% endif %}{% else %}-{% endif %}</td>{% endfor %}
+                    {% for p in projects %}<td data-plugin="{{ p.type }}" data-project-id="{{ p.id }}">{% if data.project_results[p.id] is not none %}{{ project_type(p.type).display_value(data.project_results[p.id]) }}{% else %}-{% endif %}{{ project_type(p.type).ui_slot('ranking_cell')|safe }}</td>{% endfor %}
                     {% if has_score and has_time %}
                     <td><strong>{{ data.time_total|timefmt }}</strong></td>
                     <td><strong>{{ data.score_total|scorefmt }}</strong></td>
@@ -45,14 +45,14 @@
     <div class="card"><h2>{{ p.name }} - 单项排名</h2>
         {% if project_rankings.get(p.id) %}
         <table>
-            <thead><tr><th>排名</th><th>姓名</th>{% for f in registration_fields if f.key not in ('name',) %}<th>{% if f.key == 'class_name' %}班级{% else %}{{ f.label }}{% endif %}</th>{% endfor %}<th>{% if project_type(p.type).input_mode=='score' %}成绩{% else %}最终用时{% endif %}</th></tr></thead>
+            <thead><tr><th>排名</th><th>姓名</th>{% for f in registration_fields if f.key not in ('name',) %}<th>{% if f.key == 'class_name' %}班级{% else %}{{ f.label }}{% endif %}</th>{% endfor %}<th>{{ project_type(p.type).result_label() }}</th></tr></thead>
             <tbody>
                 {% for data in project_rankings[p.id] %}
                 <tr>
                     <td>{% if loop.index==1 %}🥇{% elif loop.index==2 %}🥈{% elif loop.index==3 %}🥉{% else %}{{ loop.index }}{% endif %}</td>
                     <td><strong>{{ data.participant.name }}</strong></td>
                     {% for f in registration_fields if f.key not in ('name',) %}<td>{% if f.key == 'class_name' %}{{ data.participant.class_name or '-' }}{% else %}{{ data.extra.get(f.key, '-') }}{% endif %}</td>{% endfor %}
-                    <td><strong>{% if project_type(p.type).input_mode=='score' %}{{ data.project_results[p.id]|scorefmt }}{% else %}{{ data.project_results[p.id]|timefmt }}{% endif %}</strong></td>
+                    <td data-plugin="{{ p.type }}" data-project-id="{{ p.id }}"><strong>{{ project_type(p.type).display_value(data.project_results[p.id]) }}</strong>{{ project_type(p.type).ui_slot('ranking_cell')|safe }}</td>
                 </tr>
                 {% endfor %}
             </tbody>

@@ -13,20 +13,13 @@
             </div>
             <div class="form-group">
                 <label>项目类型</label>
-                <select class="form-control" name="type" id="projType" onchange="toggleMaxScore()">
+                <select class="form-control" name="type" id="projType">
                     {% for key, label in project_types %}
                     <option value="{{ key }}" {% if project and project.type==key %}selected{% endif %}>{{ label }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="form-group" id="maxScoreGroup" style="{% if not project or project.type!='score' %}display:none;{% endif %}">
-                <label>最大分值</label>
-                <input type="number" class="form-control" name="max_score" value="{{ project.max_score if project and project.max_score else 100 }}" step="0.1" min="0" placeholder="不填则不限制">
-            </div>
-            <div class="form-group" id="penaltyGroup" style="{% if project and project_type(project.type).input_mode=='score' %}display:none;{% endif %}">
-                <label>犯规罚时(秒/次)</label>
-                <input type="number" class="form-control" name="penalty" value="{{ project.penalty_per_violation if project else 2.0 }}" step="0.1" min="0" required>
-            </div>
+            {% include "_project_config_fields.html" %}
             <div class="form-group">
                 <label>项目分组</label>
                 <select class="form-control" name="category_id">
@@ -50,13 +43,4 @@
         </form>
     </div>
 </div>
-{% block extra_js %}
-<script>
-function toggleMaxScore(){
-    var type=document.getElementById('projType').value;
-    document.getElementById('maxScoreGroup').style.display=(type==='score')?'':'none';
-    document.getElementById('penaltyGroup').style.display=(type==='score')?'none':'';
-}
-</script>
-{% endblock %}
 {% endblock %}

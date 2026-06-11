@@ -41,14 +41,18 @@
         {% if projects %}
         <div class="project-list-table-wrap">
         <table class="project-list-table">
-            <thead><tr><th>名称</th><th>分组</th><th>类型</th><th>罚时/满分</th><th>规则</th><th>视频</th><th>关联活动数</th><th>创建时间</th><th>操作</th></tr></thead>
+            <thead><tr><th>名称</th><th>分组</th><th>插件类型</th><th>配置摘要</th><th>规则</th><th>视频</th><th>关联活动数</th><th>创建时间</th><th>操作</th></tr></thead>
             <tbody>
                 {% for p in projects %}
                 <tr>
                     <td><strong>{{ p.name }}</strong></td>
                     <td>{% if p.category %}<span class="badge" style="background:#e8eaf6;color:#3f51b5;">{{ p.category.name }}</span>{% else %}<span style="color:#ccc;">未分组</span>{% endif %}</td>
-                    <td><span class="badge" style="background:#e3f2fd;color:#1565c0;">{{ project_types[p.type].label if p.type in project_types else p.type }}</span></td>
-                    <td>{% if project_type(p.type).input_mode=='score' %}{{ p.max_score or '不限' }}分{% else %}{{ p.penalty_per_violation }}秒/次{% endif %}</td>
+                    {% set plugin = project_types[p.type] if p.type in project_types else project_type(p.type) %}
+                    <td>
+                        <span class="badge" style="background:#e3f2fd;color:#1565c0;">{{ plugin.label }}</span>
+                        <span style="display:block;color:#94a3b8;font-size:12px;margin-top:3px;">{{ plugin.source }} / {{ p.type }}{% if plugin.source == 'config' and not plugin.enabled %} / 已停用{% endif %}</span>
+                    </td>
+                    <td>{{ plugin.config_summary(p) or '-' }}</td>
                     <td>{% if p.rule_file %}<a href="/{{ p.rule_file }}" target="_blank">📥 下载</a>{% else %}-{% endif %}</td>
                     <td>{% if p.video_file %}<a href="/{{ p.video_file }}" target="_blank">👁️ 查看</a>{% else %}-{% endif %}</td>
                     <td>{{ p.activity_projects|length }}</td>

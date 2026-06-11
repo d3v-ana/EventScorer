@@ -6,9 +6,13 @@ import qrcode
 import os
 import io
 import secrets
+import json
 from .. import db, logger
-from ..models import Activity, ActivityType, Admin, Department, Project, ActivityProject, QRCode, Participant, Recorder, ActivityRecorder, Result, ProjectCategory, SystemLog, Tenant
-from ..project_types import get_project_type, project_summary_bucket, project_type_choices, project_type_map
+from ..models import Activity, ActivityType, Admin, Department, Project, ActivityProject, QRCode, Participant, Recorder, ActivityRecorder, Result, ProjectCategory, ProjectPluginDefinition, SystemLog, Tenant
+from ..project_types import (get_project_config, get_project_type, project_summary_bucket,
+                             plugin_definition_payload, project_type_choices, project_type_map,
+                             project_type_metadata, set_project_config,
+                             sync_legacy_columns)
 from ..scoring import participant_result_summary, ranking_sort_key
 from ..utils import (admin_required, csrf_required, current_tenant_id, format_time, get_current_admin,
                      get_current_tenant, get_or_404, log_action, paginate_query,
@@ -46,6 +50,7 @@ def copy_templates_to_tenant(tenant):
             type=project.type,
             max_score=project.max_score,
             penalty_per_violation=project.penalty_per_violation,
+            type_config=project.type_config,
             rule_file=project.rule_file,
             video_file=project.video_file,
             is_template=False,
@@ -151,7 +156,178 @@ def platform_templates():
     departments = Department.query.filter_by(is_template=True, tenant_id=None).order_by(Department.sort_order, Department.name).all()
     return render_template('platform_templates.html', categories=categories, projects=projects,
                            activity_types=activity_types, departments=departments,
-                           project_types=project_type_choices())
+                           project_types=project_type_choices(),
+                           project_type_metadata=project_type_metadata())
+
+
+def _json_form_value(name, default):
+    raw = request.form.get(name, '').strip()
+    if not raw:
+        return default, None
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return default, f'{name} 不是合法 JSON: {exc.msg}'
+    if not isinstance(value, type(default)):
+        return default, f'{name} 类型必须是 {"数组" if isinstance(default, list) else "对象"}'
+    return value, None
+
+
+def _dump_json(value):
+    return json.dumps(value, ensure_ascii=False, indent=2)
+
+
+def _plugin_schema_defaults():
+    return {
+        'config_schema': [
+            {'key': 'max_value', 'label': '最大值', 'type': 'number',
+             'default': 100, 'required': False, 'min': 0, 'step': 0.1},
+        ],
+        'input_schema': [
+            {'key': 'score', 'label': '成绩', 'component': 'number_input',
+             'required': True, 'min_value': 0, 'primary': True},
+        ],
+        'result_schema': {
+            'result_unit': 'score',
+            'summary_bucket': 'score',
+            'ranking_policy': 'desc',
+            'input_component': 'number_input',
+            'result_field': 'score',
+            'result_label': '成绩',
+            'display_format': 'score',
+            'export_label': '成绩',
+        },
+        'ui_slots': {
+            'admin_config': '',
+            'recorder_input': '',
+            'ranking_cell': '',
+            'activity_detail_cell': '',
+            'user_result': '',
+        },
+    }
+
+
+@admin_bp.route('/platform/project-plugins')
+@platform_required
+def project_plugins():
+    definitions = ProjectPluginDefinition.query.order_by(
+        ProjectPluginDefinition.enabled.desc(),
+        ProjectPluginDefinition.key,
+    ).all()
+    defaults = _plugin_schema_defaults()
+    return render_template('project_plugins.html',
+                           code_plugins=project_type_map(),
+                           definitions=definitions,
+                           defaults={key: _dump_json(value)
+                                     for key, value in defaults.items()},
+                           payload=plugin_definition_payload)
+
+
+@admin_bp.route('/platform/project-plugin/create', methods=['POST'])
+@platform_required
+@csrf_required
+def create_project_plugin():
+    key = truncate_str(request.form.get('key', '').strip().lower(), 50)
+    name = truncate_str(request.form.get('name', '').strip(), 100)
+    if not key or not name:
+        flash('插件 Key 和名称不能为空', 'danger')
+        return redirect(url_for('admin.project_plugins'))
+    if key in project_type_map(include_disabled=True):
+        flash('插件 Key 与内置或已有插件冲突，请更换', 'danger')
+        return redirect(url_for('admin.project_plugins'))
+    defaults = _plugin_schema_defaults()
+    parsed = {}
+    for field_name, default in defaults.items():
+        value, error = _json_form_value(field_name, default)
+        if error:
+            flash(error, 'danger')
+            return redirect(url_for('admin.project_plugins'))
+        parsed[field_name] = value
+    definition = ProjectPluginDefinition(
+        key=key,
+        name=name,
+        description=truncate_str(request.form.get('description', ''), 500),
+        enabled=bool(request.form.get('enabled')),
+        source='config',
+        config_schema=json.dumps(parsed['config_schema'], ensure_ascii=False),
+        input_schema=json.dumps(parsed['input_schema'], ensure_ascii=False),
+        result_schema=json.dumps(parsed['result_schema'], ensure_ascii=False),
+        ui_slots=json.dumps(parsed['ui_slots'], ensure_ascii=False),
+    )
+    db.session.add(definition)
+    log_action('project_plugin_create', detail=f'key={key}, name={name}')
+    db.session.commit()
+    flash(f'已创建项目类型插件「{name}」', 'success')
+    return redirect(url_for('admin.project_plugins'))
+
+
+@admin_bp.route('/platform/project-plugin/<int:plugin_id>/edit', methods=['POST'])
+@platform_required
+@csrf_required
+def edit_project_plugin(plugin_id):
+    definition = get_or_404(ProjectPluginDefinition, plugin_id)
+    defaults = _plugin_schema_defaults()
+    parsed = {}
+    for field_name, default in defaults.items():
+        value, error = _json_form_value(field_name, default)
+        if error:
+            flash(error, 'danger')
+            return redirect(url_for('admin.project_plugins'))
+        parsed[field_name] = value
+    definition.name = truncate_str(request.form.get('name', definition.name), 100)
+    definition.description = truncate_str(request.form.get('description', ''), 500)
+    definition.enabled = bool(request.form.get('enabled'))
+    definition.version = safe_int(request.form.get('version', definition.version),
+                                  definition.version) + 1
+    definition.config_schema = json.dumps(parsed['config_schema'], ensure_ascii=False)
+    definition.input_schema = json.dumps(parsed['input_schema'], ensure_ascii=False)
+    definition.result_schema = json.dumps(parsed['result_schema'], ensure_ascii=False)
+    definition.ui_slots = json.dumps(parsed['ui_slots'], ensure_ascii=False)
+    log_action('project_plugin_update',
+               detail=f'key={definition.key}, version={definition.version}')
+    db.session.commit()
+    flash(f'已保存插件「{definition.name}」', 'success')
+    return redirect(url_for('admin.project_plugins'))
+
+
+@admin_bp.route('/platform/project-plugin/<int:plugin_id>/toggle', methods=['POST'])
+@platform_required
+@csrf_required
+def toggle_project_plugin(plugin_id):
+    definition = get_or_404(ProjectPluginDefinition, plugin_id)
+    definition.enabled = not definition.enabled
+    definition.version += 1
+    log_action('project_plugin_toggle',
+               detail=f'key={definition.key}, enabled={definition.enabled}')
+    db.session.commit()
+    return redirect(url_for('admin.project_plugins'))
+
+
+@admin_bp.route('/platform/project-plugin/<int:plugin_id>/copy', methods=['POST'])
+@platform_required
+@csrf_required
+def copy_project_plugin(plugin_id):
+    definition = get_or_404(ProjectPluginDefinition, plugin_id)
+    new_key = truncate_str(request.form.get('key', '').strip().lower(), 50)
+    if not new_key or new_key in project_type_map(include_disabled=True):
+        flash('复制插件需要一个不冲突的新 Key', 'danger')
+        return redirect(url_for('admin.project_plugins'))
+    clone = ProjectPluginDefinition(
+        key=new_key,
+        name=truncate_str(request.form.get('name', f'{definition.name} 副本'), 100),
+        description=definition.description,
+        enabled=False,
+        source='config',
+        config_schema=definition.config_schema,
+        input_schema=definition.input_schema,
+        result_schema=definition.result_schema,
+        ui_slots=definition.ui_slots,
+    )
+    db.session.add(clone)
+    log_action('project_plugin_copy', detail=f'from={definition.key}, to={new_key}')
+    db.session.commit()
+    flash('已复制插件，新插件默认停用', 'success')
+    return redirect(url_for('admin.project_plugins'))
 
 
 @admin_bp.route('/platform/template/category/create', methods=['POST'])
@@ -207,13 +383,16 @@ def platform_create_template_project():
     proj_type = request.form.get('type', 'time')
     if proj_type not in project_type_map():
         proj_type = 'time'
-    max_score = None
-    if get_project_type(proj_type).summary_bucket == 'score':
-        max_score = safe_float(request.form.get('max_score', 0), 0) or None
-    db.session.add(Project(name=name, category_id=category_id, type=proj_type,
-                           max_score=max_score,
-                           penalty_per_violation=safe_float(request.form.get('penalty', 5.0), 5.0),
-                           is_template=True))
+    plugin = get_project_type(proj_type)
+    config, errors = plugin.build_config_from_form(request.form)
+    if errors:
+        flash('；'.join(errors), 'danger')
+        return redirect(url_for('admin.platform_templates'))
+    project = Project(name=name, category_id=category_id, type=proj_type,
+                      is_template=True)
+    set_project_config(project, config)
+    sync_legacy_columns(project)
+    db.session.add(project)
     db.session.commit()
     return redirect(url_for('admin.platform_templates'))
 
@@ -297,7 +476,7 @@ def project_list():
     )
     categories = scoped(ProjectCategory).order_by(ProjectCategory.sort_order, ProjectCategory.name).all()
     return render_template('project_list.html', projects=page_data.items, categories=categories,
-                           project_types=project_type_map(),
+                           project_types=project_type_map(include_disabled=True),
                            current_category_id=category_id, page=page_data.page,
                            pages=page_data.pages, total=page_data.total,
                            search=search)
@@ -310,7 +489,6 @@ def create_project():
     tenant_id = tenant_id_required()
     if request.method == 'POST':
         name = truncate_str(request.form.get('name', ''), 100)
-        penalty = safe_float(request.form.get('penalty', 5.0), 5.0)
         category_id = safe_int(request.form.get('category_id', 0), 0) or None
         if category_id:
             tenant_get_or_404(ProjectCategory, category_id)
@@ -323,12 +501,22 @@ def create_project():
             flash(f'项目名称「{name}」已存在，请使用其他名称', 'danger')
             categories = scoped(ProjectCategory).order_by(ProjectCategory.sort_order, ProjectCategory.name).all()
             return render_template('project_form.html', project=None, categories=categories,
-                                   project_types=project_type_choices())
-        max_score = None
-        if get_project_type(proj_type).summary_bucket == 'score':
-            max_score = safe_float(request.form.get('max_score', 0), 0) or None
-        project = Project(tenant_id=tenant_id, name=name, penalty_per_violation=penalty,
-                          category_id=category_id, type=proj_type, max_score=max_score)
+                                   project_types=project_type_choices(),
+                                   project_type_metadata=project_type_metadata())
+        plugin = get_project_type(proj_type)
+        config, errors = plugin.build_config_from_form(request.form)
+        if errors:
+            for error in errors:
+                flash(error, 'danger')
+            categories = scoped(ProjectCategory).order_by(ProjectCategory.sort_order, ProjectCategory.name).all()
+            return render_template('project_form.html', project=None, categories=categories,
+                                   project_types=project_type_choices(),
+                                   project_type_metadata=project_type_metadata(include_disabled=True),
+                                   project_config=config)
+        project = Project(tenant_id=tenant_id, name=name,
+                          category_id=category_id, type=proj_type)
+        set_project_config(project, config)
+        sync_legacy_columns(project)
         db.session.add(project)
         db.session.flush()
 
@@ -344,7 +532,8 @@ def create_project():
         return redirect(url_for('admin.project_list'))
     categories = scoped(ProjectCategory).order_by(ProjectCategory.sort_order, ProjectCategory.name).all()
     return render_template('project_form.html', project=None, categories=categories,
-                           project_types=project_type_choices())
+                           project_types=project_type_choices(),
+                           project_type_metadata=project_type_metadata())
 
 
 @admin_bp.route('/admin/project/<int:project_id>/edit', methods=['GET', 'POST'])
@@ -354,16 +543,24 @@ def edit_project(project_id):
     project = tenant_get_or_404(Project, project_id)
     if request.method == 'POST':
         project.name = truncate_str(request.form.get('name', project.name), 100)
-        project.penalty_per_violation = safe_float(request.form.get('penalty', project.penalty_per_violation), project.penalty_per_violation)
         project.category_id = safe_int(request.form.get('category_id', 0), 0) or None
         if project.category_id:
             tenant_get_or_404(ProjectCategory, project.category_id)
         proj_type = request.form.get('type', project.type)
         if proj_type in project_type_map():
             project.type = proj_type
-        project.max_score = None
-        if project_summary_bucket(project) == 'score':
-            project.max_score = safe_float(request.form.get('max_score', 0), 0) or None
+        plugin = get_project_type(project.type)
+        config, errors = plugin.build_config_from_form(request.form)
+        if errors:
+            for error in errors:
+                flash(error, 'danger')
+            categories = scoped(ProjectCategory).order_by(ProjectCategory.sort_order, ProjectCategory.name).all()
+            return render_template('project_form.html', project=project, categories=categories,
+                                   project_types=project_type_choices(include_disabled=True),
+                                   project_type_metadata=project_type_metadata(),
+                                   project_config=config)
+        set_project_config(project, config)
+        sync_legacy_columns(project)
 
         rule_path = save_uploaded_file(request.files.get('rule_file'), 'rules', 'rule', project.id)
         if rule_path:
@@ -377,7 +574,9 @@ def edit_project(project_id):
         return redirect(url_for('admin.project_list'))
     categories = scoped(ProjectCategory).order_by(ProjectCategory.sort_order, ProjectCategory.name).all()
     return render_template('project_form.html', project=project, categories=categories,
-                           project_types=project_type_choices())
+                           project_types=project_type_choices(include_disabled=True),
+                           project_type_metadata=project_type_metadata(include_disabled=True),
+                           project_config=get_project_config(project))
 
 
 @admin_bp.route('/admin/project/<int:project_id>/delete', methods=['POST'])
@@ -1138,13 +1337,16 @@ def activity_ranking(activity_id):
         summary = participant_result_summary(p, projects, results)
         summary['project_results'] = pr
         rankings.append(summary)
-    # 时间型升序（越小越好），分数型降序（越大越好）
     rankings.sort(key=ranking_sort_key)
-    best_score_total = max((d['score_total'] for d in rankings), default=None)
+    if all_score and rankings and rankings[0].get('all_asc'):
+        best_score_total = min((d['score_total'] for d in rankings), default=None)
+    else:
+        best_score_total = max((d['score_total'] for d in rankings), default=None)
     project_rankings = {}
     for proj in projects:
+        plugin = get_project_type(proj.type)
         pr_list = [d for d in rankings if d['project_results'].get(proj.id) is not None]
-        if project_summary_bucket(proj) == 'score':
+        if plugin.ranking_policy == 'desc':
             pr_list.sort(key=lambda x: -(x['project_results'][proj.id]))
         else:
             pr_list.sort(key=lambda x: x['project_results'][proj.id])
@@ -1308,10 +1510,13 @@ def participant_history(participant_id):
     for r in results:
         project = db.session.get(Project, r.project_id)
         recorder = db.session.get(Recorder, r.recorder_id) if r.recorder_id else None
+        plugin = get_project_type(project.type if project else 'time')
         result_list.append({
             'project': project.name if project else f'(#{r.project_id})',
             'project_type': project.type if project else 'time',
+            'project_type_label': plugin.label,
             'value': r.final_time,
+            'value_display': plugin.display_value(r.final_time),
             'violations': r.violations,
             'recorded_at': r.recorded_at,
             'recorder_name': recorder.name if recorder else '-',

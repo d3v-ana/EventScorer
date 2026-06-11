@@ -494,6 +494,9 @@
             <a href="{{ url_for('admin.platform_templates') }}">
                 <span class="icon">📦</span> 平台模板
             </a>
+            <a href="{{ url_for('admin.project_plugins') }}">
+                <span class="icon">🧩</span> 项目类型插件
+            </a>
             {% endif %}
             <a href="{{ url_for('admin.departments') }}"
                class="{% if request.endpoint and request.endpoint.startswith('admin.department') %}active{% endif %}">

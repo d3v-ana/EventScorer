@@ -1,0 +1,10 @@
+<div id="{{ area_id|default('numberModeArea') }}" style="display:none;">
+    <div class="form-group">
+        <label><span id="numberInputLabel">成绩</span> <small style="color:#999;font-weight:normal;" id="scoreHint"></small></label>
+        <input type="number" class="form-control" id="scoreInput" name="score" min="0.1" step="0.1" style="font-size:2em;text-align:center;font-family:monospace;padding:20px;" placeholder="输入成绩">
+    </div>
+    <div class="result-item" style="background:#e8f5e9;border-left-color:#4caf50;">
+        <h4>录入成绩</h4>
+        <p style="font-size:2em;font-weight:bold;text-align:center;color:#4caf50;" id="scorePreview">-</p>
+    </div>
+</div>

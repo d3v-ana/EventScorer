@@ -36,11 +36,11 @@
                     <option value="">无分组</option>
                     {% for cat in categories %}<option value="{{ cat.id }}">{{ cat.name }}</option>{% endfor %}
                 </select>
-                <select class="form-control" name="type" style="margin-top:8px;">
+                <select class="form-control" name="type" id="projType" style="margin-top:8px;">
                     {% for key,label in project_types %}<option value="{{ key }}">{{ label }}</option>{% endfor %}
                 </select>
-                <input class="form-control" name="penalty" placeholder="犯规罚时" value="5" style="margin-top:8px;">
-                <input class="form-control" name="max_score" placeholder="最大分值" style="margin-top:8px;">
+                {% set project_config = {'fields': {}, 'custom_fields': []} %}
+                {% include "_project_config_fields.html" %}
                 <button class="btn btn-success" style="margin-top:8px;">新增项目模板</button>
             </form>
         </div>

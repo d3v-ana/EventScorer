@@ -2,71 +2,239 @@
 {% block title %}账户管理{% endblock %}
 {% block admin_title %}账户管理{% endblock %}
 {% block admin_content %}
-<div class="container">
+<style>
+.account-page {
+    max-width: 1180px;
+}
+.account-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 20px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: linear-gradient(135deg, #f8fbff, #eef4ff);
+    margin-bottom: 16px;
+}
+.account-identity {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+.account-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: #2563eb;
+    color: #fff;
+    display: grid;
+    place-items: center;
+    font-weight: 800;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.account-identity h2 {
+    margin: 0 0 4px;
+    font-size: 20px;
+}
+.account-identity p {
+    margin: 0;
+    color: #64748b;
+    overflow-wrap: anywhere;
+}
+.account-badges {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.account-badge {
+    border-radius: 999px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #e0ecff;
+    color: #1d4ed8;
+}
+.account-badge.tenant {
+    background: #dcfce7;
+    color: #166534;
+}
+.account-actions-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+    gap: 16px;
+    align-items: start;
+    margin-bottom: 16px;
+}
+.account-panel {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    padding: 18px;
+}
+.account-panel h3,
+.account-list-header h3 {
+    margin: 0 0 12px;
+    font-size: 17px;
+}
+.account-panel .form-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+.account-list-card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    overflow: hidden;
+}
+.account-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+}
+.account-list-header p {
+    margin: 4px 0 0;
+    color: #64748b;
+    font-size: 13px;
+}
+.account-table-wrap {
+    overflow-x: auto;
+}
+.account-role {
+    display: inline-flex;
+    border-radius: 999px;
+    padding: 4px 9px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #eef2ff;
+    color: #3730a3;
+}
+.account-role.platform {
+    background: #fef3c7;
+    color: #92400e;
+}
+.account-current {
+    color: #64748b;
+    font-size: 13px;
+}
+@media (max-width: 900px) {
+    .account-hero,
+    .account-list-header {
+        align-items: stretch;
+        flex-direction: column;
+    }
+    .account-badges {
+        justify-content: flex-start;
+    }
+    .account-actions-grid,
+    .account-panel .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
+<div class="container account-page">
     {% if success %}<div class="alert alert-success">{{ success }}</div>{% endif %}
     {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
 
-    <div class="card">
-        <h2>修改密码</h2>
-        <form method="post">
-            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="change_password">
-            <div class="form-group">
-                <label>原密码</label>
-                <input type="password" class="form-control" name="old_password" required>
+    <section class="account-hero">
+        <div class="account-identity">
+            <div class="account-avatar">{{ admin().username[:1] if admin() else '?' }}</div>
+            <div>
+                <h2>{{ admin().username if admin() else '未登录' }}</h2>
+                <p>{{ admin().email if admin() else '' }}</p>
             </div>
-            <div class="form-group">
-                <label>新密码</label>
-                <input type="password" class="form-control" name="new_password" required>
-            </div>
-            <button type="submit" class="btn btn-primary">🔑 修改密码</button>
-        </form>
+        </div>
+        <div class="account-badges">
+            <span class="account-badge">{{ '平台管理员' if admin() and admin().is_platform_admin else '租户管理员' }}</span>
+            {% if current_tenant() %}
+            <span class="account-badge tenant">当前管理：{{ current_tenant().name }}</span>
+            {% endif %}
+            <span class="account-badge">共 {{ admins|length }} 个管理员</span>
+        </div>
+    </section>
+
+    <div class="account-actions-grid">
+        <section class="account-panel">
+            <h3>安全设置</h3>
+            <form method="post">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="change_password">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>原密码</label>
+                        <input type="password" class="form-control" name="old_password" required>
+                    </div>
+                    <div class="form-group">
+                        <label>新密码</label>
+                        <input type="password" class="form-control" name="new_password" required>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">修改密码</button>
+            </form>
+        </section>
+
+        <section class="account-panel">
+            <h3>新增管理员</h3>
+            <form method="post">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="create_admin">
+                <div class="form-group">
+                    <label>姓名</label>
+                    <input type="text" class="form-control" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label>登录邮箱</label>
+                    <input type="email" class="form-control" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label>初始密码</label>
+                    <input type="password" class="form-control" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-success" style="width:100%;">创建租户管理员</button>
+            </form>
+        </section>
     </div>
 
-    <div class="card">
-        <h2>创建管理员</h2>
-        <form method="post">
-            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-            <input type="hidden" name="action" value="create_admin">
-            <div class="form-group">
-                <label>姓名</label>
-                <input type="text" class="form-control" name="username" required>
+    <section class="account-list-card">
+        <div class="account-list-header">
+            <div>
+                <h3>管理员列表</h3>
+                <p>管理当前学校/单位的后台账号。平台管理员代管时，这里显示当前租户的管理员。</p>
             </div>
-            <div class="form-group">
-                <label>登录邮箱</label>
-                <input type="email" class="form-control" name="email" required>
-            </div>
-            <div class="form-group">
-                <label>密码</label>
-                <input type="password" class="form-control" name="password" required>
-            </div>
-            <button type="submit" class="btn btn-success">➕ 创建</button>
-        </form>
-    </div>
-
-    <div class="card">
-        <h2>管理员列表</h2>
-        <table>
-            <thead><tr><th>姓名</th><th>邮箱</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
-            <tbody>
-                {% for a in admins %}
-                <tr>
-                    <td>{{ a.username }}</td>
-                    <td>{{ a.email }}</td>
-                    <td>{{ '平台管理员' if a.is_platform_admin else '租户管理员' }}</td>
-                    <td>{{ a.created_at.strftime('%Y-%m-%d') }}</td>
-                    <td>
-                        {% if admin() and admin().id != a.id %}
-                        <form action="{{ url_for('auth.delete_admin',admin_id=a.id) }}" method="post" style="display:inline;" onsubmit="return confirm('删除该管理员?')">
-                            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
-                            <button class="btn btn-danger btn-sm">🗑️ 删除</button>
-                        </form>
-                        {% else %}<span style="color:#999;">当前用户</span>{% endif %}
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+        </div>
+        <div class="account-table-wrap">
+            <table>
+                <thead><tr><th>姓名</th><th>邮箱</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
+                <tbody>
+                    {% for a in admins %}
+                    <tr>
+                        <td><strong>{{ a.username }}</strong></td>
+                        <td>{{ a.email }}</td>
+                        <td><span class="account-role {% if a.is_platform_admin %}platform{% endif %}">{{ '平台管理员' if a.is_platform_admin else '租户管理员' }}</span></td>
+                        <td>{{ a.created_at.strftime('%Y-%m-%d') }}</td>
+                        <td>
+                            {% if admin() and admin().id != a.id %}
+                            <form action="{{ url_for('auth.delete_admin',admin_id=a.id) }}" method="post" style="display:inline;" onsubmit="return confirm('删除该管理员?')">
+                                <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                                <button class="btn btn-danger btn-sm">删除</button>
+                            </form>
+                            {% else %}<span class="account-current">当前账号</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" style="text-align:center;color:#999;">暂无管理员</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
 {% endblock %}

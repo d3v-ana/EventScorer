@@ -1,10 +1,31 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, jsonify
 from .. import db, logger
 from ..models import Recorder, Participant, Activity, Project, Result, QRCode, ActivityRecorder
-from ..project_types import get_project_type, project_type_map
+from ..project_types import get_project_config, get_project_type, project_type_map
 from ..utils import csrf_required, get_activity_projects, get_or_404, safe_float, safe_int, log_action
 
 recorder_bp = Blueprint('recorder', __name__)
+
+
+def _project_input_metadata(projects):
+    data = {}
+    for project in projects:
+        plugin = get_project_type(project.type)
+        data[project.id] = {
+            'key': plugin.key,
+            'label': plugin.label,
+            'input_component': plugin.input_component,
+            'input_mode': plugin.input_mode,
+            'input_fields': plugin.input_field_dicts(),
+            'result_unit': plugin.result_unit,
+            'result_label': plugin.result_label(),
+            'ranking_policy': plugin.ranking_policy,
+            'result_field': plugin.result_field,
+            'option_label': plugin.option_label(project),
+            'ui_slots': plugin.ui_slots,
+            'config': get_project_config(project),
+        }
+    return data
 
 
 def _get_recorder_activity(recorder_id, activity_id):
@@ -128,7 +149,7 @@ def recorder_scan(recorder_id):
     projects = get_activity_projects(activity.id)
     allowed_projects = [p for p in projects if p.id in ar.project_id_list()]
     import json
-    project_types = {p.id: get_project_type(p.type).input_mode for p in allowed_projects}
+    project_types = _project_input_metadata(allowed_projects)
     # 词库列表（只传递用户自定义的词）
     words = None
     if activity.custom_words:
@@ -195,7 +216,7 @@ def recorder_input(recorder_id, code):
             'type': project_type.key,
         })
     import json
-    project_types = {p.id: get_project_type(p.type).input_mode for p in allowed_projects}
+    project_types = _project_input_metadata(allowed_projects)
     words = None
     if activity.custom_words:
         custom = [w.strip() for w in activity.custom_words.split('\n') if w.strip()]

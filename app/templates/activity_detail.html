@@ -46,7 +46,7 @@
                     {% for project in projects %}
                     <tr>
                         <td><strong>{{ project.name }}</strong></td>
-                        <td>{% if project.type == 'score' %}{{ project.max_score or '-' }}分{% else %}{{ project.penalty_per_violation }}秒/次{% endif %}</td>
+                        <td>{{ project_type(project.type).option_label(project) or '-' }}</td>
                         <td>{% if project.rule_file %}<a href="/{{ project.rule_file }}" target="_blank">📥 下载</a>{% else %}-{% endif %}</td>
                         <td>{% if project.video_file %}<a href="/{{ project.video_file }}" target="_blank">👁️ 查看</a>{% else %}-{% endif %}</td>
                         <td>
@@ -76,7 +76,7 @@
                     <select class="form-control" name="project_id" id="addProjectSelect">
                         <option value="">选择要添加的项目...</option>
                         {% for p in all_projects %}
-                            {% if p.id not in projects|map(attribute='id')|list %}<option value="{{ p.id }}" data-category-id="{{ p.category_id or 0 }}">{{ p.name }} {% if project_type(p.type).input_mode == 'score' %}(满{{ p.max_score or '-' }}分){% else %}(罚{{ p.penalty_per_violation }}s){% endif %}</option>{% endif %}
+                            {% if p.id not in projects|map(attribute='id')|list %}<option value="{{ p.id }}" data-category-id="{{ p.category_id or 0 }}">{{ p.name }} {{ project_type(p.type).option_label(p) }}</option>{% endif %}
                         {% endfor %}
                     </select>
                 </div>
@@ -350,7 +350,7 @@
                     <td>{{ (p_page-1)*15 + loop.index }}</td>
                     <td><strong>{{ data.participant.name }}</strong></td>
                     {% for f in registration_fields if f.key != 'name' %}<td>{% if f.key == 'class_name' %}{{ data.participant.class_name or '-' }}{% else %}{{ data.extra.get(f.key, '-') }}{% endif %}</td>{% endfor %}
-                    {% for project in projects %}<td>{% if project.id in data.result_map %}{% if project_type(project.type).input_mode=='score' %}{{ data.result_map[project.id]|scorefmt }}{% else %}{{ data.result_map[project.id]|timefmt }}{% endif %}{% else %}-{% endif %}</td>{% endfor %}
+                    {% for project in projects %}<td data-plugin="{{ project.type }}" data-project-id="{{ project.id }}">{% if project.id in data.result_map %}{{ project_type(project.type).display_value(data.result_map[project.id]) }}{% else %}-{% endif %}{{ project_type(project.type).ui_slot('activity_detail_cell')|safe }}</td>{% endfor %}
                     {% if has_score and has_time %}<td><strong>{{ data.time_total|timefmt }}</strong></td><td><strong>{{ data.score_total|scorefmt }}</strong></td>{% elif all_score %}<td><strong>{{ data.total_time|scorefmt }}</strong></td>{% else %}<td><strong>{{ data.total_time|timefmt }}</strong></td>{% endif %}
                     <td>
                         <a href="{{ url_for('admin.participant_history', participant_id=data.participant.id) }}" class="btn btn-info btn-sm">📋 历史</a>

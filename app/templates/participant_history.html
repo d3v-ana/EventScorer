@@ -25,14 +25,8 @@
             {% for r in results %}
             <tr>
                 <td><strong>{{ r.project }}</strong></td>
-                <td>{% if r.project_type == 'score' %}分值{% else %}计时{% endif %}</td>
-                <td>
-                    {% if r.project_type == 'score' %}
-                    {{ r.value|scorefmt }}
-                    {% else %}
-                    {{ r.value|timefmt }}
-                    {% endif %}
-                </td>
+                <td>{{ r.project_type_label }}</td>
+                <td>{{ r.value_display }}</td>
                 <td>{{ r.violations }}</td>
                 <td>{{ r.recorder_name }}</td>
                 <td>{{ r.recorded_at | string }}</td>

@@ -72,6 +72,33 @@ def create_app(config_name='config.Config'):
         admin_cols = {col['name'] for col in inspector.get_columns('admin')}
         return 'email' not in admin_cols or 'role' not in admin_cols
 
+    def _ensure_project_type_config_column():
+        inspector = db.inspect(db.engine)
+        if not inspector.has_table('project'):
+            return
+        project_cols = {col['name'] for col in inspector.get_columns('project')}
+        if 'type_config' not in project_cols:
+            with db.engine.begin() as conn:
+                conn.exec_driver_sql('ALTER TABLE project ADD COLUMN type_config TEXT')
+
+    def _backfill_project_type_config():
+        from .models import Project
+        from .project_types import get_project_type, set_project_config, sync_legacy_columns
+        changed = False
+        for project in Project.query.all():
+            if project.type_config:
+                continue
+            plugin = get_project_type(project.type)
+            config, _ = plugin.build_config_from_form({
+                f'config_{field.key}': getattr(project, field.key, field.default)
+                for field in plugin.config_fields
+            })
+            set_project_config(project, config)
+            sync_legacy_columns(project)
+            changed = True
+        if changed:
+            db.session.commit()
+
     def _seed_platform_templates():
         from .models import ActivityType, Department, ProjectCategory
         if not ActivityType.query.filter_by(is_template=True, tenant_id=None).first():
@@ -114,6 +141,7 @@ def create_app(config_name='config.Config'):
             logger.warning('检测到旧版单租户数据库结构，将按 SaaS 新结构清空重建')
             db.drop_all()
         db.create_all()
+        _ensure_project_type_config_column()
         if not Admin.query.filter_by(role='platform_admin').first():
             default_pw = os.environ.get('ADMIN_PASSWORD', secrets.token_hex(8))
             default_email = os.environ.get('ADMIN_EMAIL', 'admin@example.com')
@@ -125,5 +153,6 @@ def create_app(config_name='config.Config'):
         if app.config.get('TESTING'):
             _seed_test_tenant()
         _seed_platform_templates()
+        _backfill_project_type_config()
 
     return app

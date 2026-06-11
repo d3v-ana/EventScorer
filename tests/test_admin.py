@@ -143,8 +143,8 @@ class TestProjectCRUD:
 
         assert '最大分值' in body
         assert '犯规罚时(秒/次)' in body
-        assert "maxScoreGroup').style.display=(type==='score')?'':'none'" in body
-        assert "penaltyGroup').style.display=(type==='score')?'none':''" in body
+        assert 'window.projectTypeMetadata' in body
+        assert 'pluginConfigFields' in body
 
     def test_create_project(self, auth_client):
         resp = auth_client.post('/admin/project/create', data={
@@ -153,6 +153,34 @@ class TestProjectCRUD:
             '_csrf_token': 'test'
         }, follow_redirects=True)
         assert resp.status_code == 200
+
+    def test_project_dynamic_config_and_custom_fields_save(
+            self, auth_client, app):
+        import json
+        from app.models import Project, Tenant
+
+        resp = auth_client.post('/admin/project/create', data={
+            'name': '自定义配置项目',
+            'type': 'score',
+            'config_max_score': '80',
+            'custom_config_key[]': ['unit', 'visible'],
+            'custom_config_label[]': ['单位', '是否展示'],
+            'custom_config_type[]': ['text', 'boolean'],
+            'custom_config_value[]': ['分', 'on'],
+            '_csrf_token': 'test'
+        }, follow_redirects=True)
+        assert resp.status_code == 200
+
+        with app.app_context():
+            tenant = Tenant.query.filter_by(name='测试学校').first()
+            project = Project.query.filter_by(
+                tenant_id=tenant.id, name='自定义配置项目'
+            ).first()
+            config = json.loads(project.type_config)
+            assert config['fields']['max_score'] == 80
+            assert project.max_score == 80
+            assert config['custom_fields'][0]['key'] == 'unit'
+            assert config['custom_fields'][1]['value'] is True
 
     def test_edit_project_page(self, auth_client, sample_project):
         resp = auth_client.get(f'/admin/project/{sample_project.id}/edit')

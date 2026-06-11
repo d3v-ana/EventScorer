@@ -1,0 +1,115 @@
+{% extends "admin_base.html" %}
+{% block title %}项目类型插件{% endblock %}
+{% block admin_title %}项目类型插件{% endblock %}
+{% block extra_css %}
+{{ super() }}
+<style>
+.plugin-grid{display:grid;grid-template-columns:1fr;gap:16px;}
+.plugin-row{border:1px solid #e5e7eb;border-radius:8px;padding:14px;background:#fff;}
+.plugin-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.plugin-meta{display:flex;gap:8px;flex-wrap:wrap;color:#64748b;font-size:13px;margin-top:6px;}
+.schema-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:12px;}
+.schema-grid textarea{min-height:170px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;}
+.plugin-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;}
+.copy-form{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+.copy-form input{max-width:150px;}
+</style>
+{% endblock %}
+{% block admin_content %}
+<div class="container">
+    <div class="card">
+        <h2>创建配置型插件</h2>
+        <p style="color:#666;margin-top:0;">配置型插件用于定义项目配置、录入字段、排名方向、导出列和限定插槽 HTML/JS。内置代码插件 key 不可覆盖。</p>
+        <form method="post" action="{{ url_for('admin.create_project_plugin') }}">
+            <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+                <div class="form-group"><label>插件 Key</label><input class="form-control" name="key" placeholder="distance_high" required></div>
+                <div class="form-group"><label>名称</label><input class="form-control" name="name" placeholder="距离成绩" required></div>
+                <label style="display:flex;gap:8px;align-items:center;margin-bottom:14px;"><input type="checkbox" name="enabled" value="1" checked> 启用</label>
+            </div>
+            <div class="form-group"><label>说明</label><input class="form-control" name="description" placeholder="用于项目列表和插件管理说明"></div>
+            <div class="schema-grid">
+                <div><label>配置 schema</label><textarea class="form-control" name="config_schema">{{ defaults.config_schema }}</textarea></div>
+                <div><label>录入 schema</label><textarea class="form-control" name="input_schema">{{ defaults.input_schema }}</textarea></div>
+                <div><label>结果 schema</label><textarea class="form-control" name="result_schema">{{ defaults.result_schema }}</textarea></div>
+                <div><label>UI 插槽</label><textarea class="form-control" name="ui_slots">{{ defaults.ui_slots }}</textarea></div>
+            </div>
+            <button class="btn btn-success" style="margin-top:10px;">创建插件</button>
+        </form>
+    </div>
+
+    <div class="card">
+        <h2>内置代码插件</h2>
+        <table>
+            <thead><tr><th>Key</th><th>名称</th><th>来源</th><th>录入组件</th><th>排名</th><th>配置字段</th></tr></thead>
+            <tbody>
+                {% for key, plugin in code_plugins.items() if plugin.source == 'code' %}
+                <tr>
+                    <td><code>{{ key }}</code></td>
+                    <td>{{ plugin.label }}</td>
+                    <td>code</td>
+                    <td>{{ plugin.input_component }}</td>
+                    <td>{{ plugin.ranking_policy }}</td>
+                    <td>{% for field in plugin.config_fields %}<span class="badge" style="background:#eef2ff;color:#3730a3;">{{ field.label }}</span> {% else %}-{% endfor %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>配置型插件</h2>
+        {% if definitions %}
+        <div class="plugin-grid">
+            {% for definition in definitions %}
+            {% set data = payload(definition) %}
+            <div class="plugin-row">
+                <div class="plugin-head">
+                    <div>
+                        <h3 style="margin:0;">{{ definition.name }} <code>{{ definition.key }}</code></h3>
+                        <div class="plugin-meta">
+                            <span>版本 v{{ definition.version }}</span>
+                            <span>来源 {{ definition.source }}</span>
+                            <span>{% if definition.enabled %}已启用{% else %}已停用{% endif %}</span>
+                            <span>{{ definition.updated_at.strftime('%Y-%m-%d %H:%M') if definition.updated_at else '' }}</span>
+                        </div>
+                        {% if definition.description %}<p style="color:#64748b;margin:8px 0 0;">{{ definition.description }}</p>{% endif %}
+                    </div>
+                    <form method="post" action="{{ url_for('admin.toggle_project_plugin', plugin_id=definition.id) }}">
+                        <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn {% if definition.enabled %}btn-warning{% else %}btn-success{% endif %} btn-sm">{% if definition.enabled %}停用{% else %}启用{% endif %}</button>
+                    </form>
+                </div>
+                <form method="post" action="{{ url_for('admin.edit_project_plugin', plugin_id=definition.id) }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input type="hidden" name="version" value="{{ definition.version }}">
+                    <div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-top:10px;">
+                        <div class="form-group"><label>名称</label><input class="form-control" name="name" value="{{ definition.name }}" required></div>
+                        <label style="display:flex;gap:8px;align-items:center;margin-bottom:14px;"><input type="checkbox" name="enabled" value="1" {% if definition.enabled %}checked{% endif %}> 启用</label>
+                    </div>
+                    <div class="form-group"><label>说明</label><input class="form-control" name="description" value="{{ definition.description or '' }}"></div>
+                    <div class="schema-grid">
+                        <div><label>配置 schema</label><textarea class="form-control" name="config_schema">{{ data.config_schema|tojson(indent=2) }}</textarea></div>
+                        <div><label>录入 schema</label><textarea class="form-control" name="input_schema">{{ data.input_schema|tojson(indent=2) }}</textarea></div>
+                        <div><label>结果 schema</label><textarea class="form-control" name="result_schema">{{ data.result_schema|tojson(indent=2) }}</textarea></div>
+                        <div><label>UI 插槽</label><textarea class="form-control" name="ui_slots">{{ data.ui_slots|tojson(indent=2) }}</textarea></div>
+                    </div>
+                    <div class="plugin-actions">
+                        <button class="btn btn-primary btn-sm">保存并升版本</button>
+                    </div>
+                </form>
+                <form class="copy-form" method="post" action="{{ url_for('admin.copy_project_plugin', plugin_id=definition.id) }}">
+                    <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+                    <input class="form-control" name="key" placeholder="新 key" required>
+                    <input class="form-control" name="name" placeholder="新名称" value="{{ definition.name }} 副本">
+                    <button class="btn btn-secondary btn-sm">复制</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="text-align:center;color:#64748b;padding:30px;">暂无配置型插件</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

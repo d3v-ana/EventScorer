@@ -1,0 +1,132 @@
+{% set config = project_config if project_config is defined and project_config else {'fields': {}, 'custom_fields': []} %}
+<template id="projectConfigFieldLabels">
+{% for meta in project_type_metadata.values() %}{% for field in meta.config_fields %}{{ field.label }} {% endfor %}{% endfor %}
+</template>
+<div class="form-group">
+    <label>项目类型配置</label>
+    <div id="pluginConfigFields" data-current-config='{{ config|tojson }}'></div>
+</div>
+<div id="pluginAdminConfigSlot"></div>
+
+<div class="form-group">
+    <label>自定义配置项</label>
+    <div id="customConfigFields"></div>
+    <button type="button" class="btn btn-secondary btn-sm" onclick="addCustomConfigField()">新增配置项</button>
+    <p style="color:#999;font-size:12px;margin:6px 0 0;">自定义配置项会随项目保存，供后续插件或页面读取。</p>
+</div>
+
+<script>
+window.projectTypeMetadata = {{ project_type_metadata|tojson }};
+
+function projectConfigValue(field, currentConfig) {
+    var fields = (currentConfig && currentConfig.fields) || {};
+    if (fields[field.key] !== undefined && fields[field.key] !== null && fields[field.key] !== '') return fields[field.key];
+    return field.default !== null && field.default !== undefined ? field.default : '';
+}
+
+function renderPluginConfigFields() {
+    var typeEl = document.getElementById('projType');
+    var root = document.getElementById('pluginConfigFields');
+    if (!typeEl || !root) return;
+    var meta = window.projectTypeMetadata[typeEl.value] || {};
+    var currentConfig = {};
+    try { currentConfig = JSON.parse(root.dataset.currentConfig || '{}'); } catch (e) {}
+    var fields = meta.config_fields || [];
+    if (!fields.length) {
+        root.innerHTML = '<p style="color:#999;margin:0;">该项目类型暂无额外配置。</p>';
+        renderPluginSlot('admin_config', 'pluginAdminConfigSlot');
+        return;
+    }
+    root.innerHTML = fields.map(function(field) {
+        var value = projectConfigValue(field, currentConfig);
+        var attrs = [
+            'class="form-control"',
+            'name="config_' + field.key + '"',
+            field.required ? 'required' : '',
+            field.min !== null && field.min !== undefined ? 'min="' + field.min + '"' : '',
+            field.step !== null && field.step !== undefined ? 'step="' + field.step + '"' : '',
+            field.placeholder ? 'placeholder="' + escapeHtml(field.placeholder) + '"' : ''
+        ].filter(Boolean).join(' ');
+        if (field.type === 'boolean') {
+            return '<label style="display:flex;gap:8px;align-items:center;margin:8px 0;">'
+                + '<input type="checkbox" name="config_' + field.key + '" value="1" ' + (value ? 'checked' : '') + '> '
+                + escapeHtml(field.label) + '</label>';
+        }
+        if (field.type === 'select') {
+            var options = (field.options || []).map(function(option) {
+                var optionValue = Array.isArray(option) ? option[0] : option;
+                var optionLabel = Array.isArray(option) ? option[1] : option;
+                return '<option value="' + escapeAttr(optionValue) + '" ' + (String(optionValue) === String(value) ? 'selected' : '') + '>'
+                    + escapeHtml(optionLabel) + '</option>';
+            }).join('');
+            return '<div class="form-group" style="margin-bottom:10px;">'
+                + '<label>' + escapeHtml(field.label) + '</label>'
+                + '<select ' + attrs + '>' + options + '</select>'
+                + '</div>';
+        }
+        return '<div class="form-group" style="margin-bottom:10px;">'
+            + '<label>' + escapeHtml(field.label) + '</label>'
+            + '<input type="' + (field.type === 'number' ? 'number' : 'text') + '" ' + attrs + ' value="' + escapeAttr(value) + '">'
+            + '</div>';
+    }).join('');
+    renderPluginSlot('admin_config', 'pluginAdminConfigSlot');
+}
+
+function renderPluginSlot(slotName, targetId) {
+    var typeEl = document.getElementById('projType');
+    var target = document.getElementById(targetId);
+    if (!typeEl || !target) return;
+    var meta = window.projectTypeMetadata[typeEl.value] || {};
+    var html = meta.ui_slots && meta.ui_slots[slotName] ? meta.ui_slots[slotName] : '';
+    target.innerHTML = html;
+    target.querySelectorAll('script').forEach(function(oldScript) {
+        var script = document.createElement('script');
+        Array.prototype.slice.call(oldScript.attributes).forEach(function(attr) {
+            script.setAttribute(attr.name, attr.value);
+        });
+        script.text = oldScript.text || oldScript.textContent || '';
+        oldScript.parentNode.replaceChild(script, oldScript);
+    });
+}
+
+function addCustomConfigField(item) {
+    var root = document.getElementById('customConfigFields');
+    if (!root) return;
+    item = item || {};
+    var row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 120px 1fr auto;gap:8px;align-items:end;margin-bottom:8px;';
+    row.innerHTML =
+        '<div><label>键</label><input class="form-control" name="custom_config_key[]" value="' + escapeAttr(item.key || '') + '" placeholder="key"></div>' +
+        '<div><label>名称</label><input class="form-control" name="custom_config_label[]" value="' + escapeAttr(item.label || '') + '" placeholder="显示名称"></div>' +
+        '<div><label>类型</label><select class="form-control" name="custom_config_type[]">' +
+            ['text','number','boolean','select'].map(function(t){return '<option value="'+t+'" '+((item.type||'text')===t?'selected':'')+'>'+typeLabel(t)+'</option>';}).join('') +
+        '</select></div>' +
+        '<div><label>值</label><input class="form-control" name="custom_config_value[]" value="' + escapeAttr(item.value === undefined ? '' : item.value) + '"></div>' +
+        '<button type="button" class="btn btn-danger btn-sm" onclick="this.parentNode.remove()">删除</button>';
+    root.appendChild(row);
+}
+
+function renderCustomConfigFields() {
+    var root = document.getElementById('pluginConfigFields');
+    var currentConfig = {};
+    try { currentConfig = JSON.parse(root.dataset.currentConfig || '{}'); } catch (e) {}
+    (currentConfig.custom_fields || []).forEach(function(item){ addCustomConfigField(item); });
+}
+
+function typeLabel(type) {
+    return {text:'文本', number:'数字', boolean:'开关', select:'下拉'}[type] || type;
+}
+function escapeHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function(s) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s];
+    });
+}
+function escapeAttr(value) { return escapeHtml(value); }
+
+document.addEventListener('DOMContentLoaded', function() {
+    var typeEl = document.getElementById('projType');
+    if (typeEl) typeEl.addEventListener('change', renderPluginConfigFields);
+    renderPluginConfigFields();
+    renderCustomConfigFields();
+});
+</script>

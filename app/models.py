@@ -157,9 +157,10 @@ class Project(db.Model):
     is_template = db.Column(db.Boolean, default=False, nullable=False)
     name = db.Column(db.String(100), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey('project_category.id'), nullable=True)
-    type = db.Column(db.String(10), default='time')
+    type = db.Column(db.String(50), default='time')
     max_score = db.Column(db.Float, nullable=True)
     penalty_per_violation = db.Column(db.Float, default=5.0)
+    type_config = db.Column(db.Text, default='')
     rule_file = db.Column(db.String(500))
     video_file = db.Column(db.String(500))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
@@ -170,6 +171,55 @@ class Project(db.Model):
     __table_args__ = (
         db.UniqueConstraint('tenant_id', 'name', name='uq_project_tenant_name'),
     )
+
+
+class ProjectPluginDefinition(db.Model):
+    """后台配置型项目类型插件定义。"""
+    id = db.Column(db.Integer, primary_key=True)
+    tenant_id = db.Column(db.Integer, db.ForeignKey('tenant.id'), nullable=True, index=True)
+    key = db.Column(db.String(50), nullable=False, index=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.Text, default='')
+    enabled = db.Column(db.Boolean, default=True, nullable=False)
+    source = db.Column(db.String(20), default='config', nullable=False)
+    version = db.Column(db.Integer, default=1, nullable=False)
+    config_schema = db.Column(db.Text, default='[]')
+    input_schema = db.Column(db.Text, default='[]')
+    result_schema = db.Column(db.Text, default='{}')
+    ui_slots = db.Column(db.Text, default='{}')
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc),
+                           onupdate=lambda: datetime.now(timezone.utc))
+    tenant = db.relationship('Tenant', backref='project_plugin_definitions', lazy=True)
+    __table_args__ = (
+        db.UniqueConstraint('tenant_id', 'key', name='uq_project_plugin_tenant_key'),
+    )
+
+    def _loads(self, value, fallback):
+        import json
+        if not value:
+            return fallback
+        try:
+            parsed = json.loads(value)
+        except (TypeError, json.JSONDecodeError):
+            return fallback
+        return parsed if isinstance(parsed, type(fallback)) else fallback
+
+    @property
+    def config_fields(self):
+        return self._loads(self.config_schema, [])
+
+    @property
+    def input_fields(self):
+        return self._loads(self.input_schema, [])
+
+    @property
+    def result_config(self):
+        return self._loads(self.result_schema, {})
+
+    @property
+    def slot_config(self):
+        return self._loads(self.ui_slots, {})
 
 
 class ActivityProject(db.Model):
@@ -327,6 +377,8 @@ def fill_missing_tenant_ids(session, flush_context, instances):
     if tenant_id is None:
         return
     for obj in session.new:
+        if isinstance(obj, SystemLog) and getattr(obj, '_allow_null_tenant', False):
+            continue
         if isinstance(obj, TENANT_SCOPED_MODELS) and getattr(obj, 'tenant_id', None) is None and not getattr(obj, 'is_template', False):
             obj.tenant_id = tenant_id
         if isinstance(obj, Admin) and obj.role == 'tenant_admin' and obj.tenant_id is None:

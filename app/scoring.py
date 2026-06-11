@@ -1,4 +1,4 @@
-from .project_types import project_summary_bucket
+from .project_types import get_project_type, project_summary_bucket
 
 
 def _value(result):
@@ -25,6 +25,14 @@ def summarize_results(projects, results):
 
     all_score = bool(projects) and all(project_summary_bucket(project) == 'score'
                                        for project in projects)
+    all_desc = bool(projects) and all(
+        get_project_type(project.type).ranking_policy == 'desc'
+        for project in projects
+    )
+    all_asc = bool(projects) and all(
+        get_project_type(project.type).ranking_policy == 'asc'
+        for project in projects
+    )
     display_total = total_score if all_score else total_time
     return {
         'total_time': display_total,
@@ -37,6 +45,8 @@ def summarize_results(projects, results):
                          for project in projects),
         'has_time': any(project_summary_bucket(project) == 'time'
                         for project in projects),
+        'all_desc': all_desc,
+        'all_asc': all_asc,
     }
 
 
@@ -60,6 +70,8 @@ def participant_result_summary(participant, projects, results):
 
 def ranking_sort_key(summary):
     if summary['all_score']:
+        if summary.get('all_asc'):
+            return (summary['score_total'], summary['participant'].id)
         return (-summary['score_total'], summary['participant'].id)
     if summary['time_count']:
         return (summary['time_total'], -summary['score_total'],

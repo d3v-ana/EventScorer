@@ -22,6 +22,8 @@ def log_action(action, detail=None, recorder_id=None, participant_id=None, activ
                     recorder_id=recorder_id, participant_id=participant_id,
                     activity_id=activity_id,
                     created_at=datetime.now(timezone.utc))
+    if tenant_id is None:
+        log._allow_null_tenant = True
     db.session.add(log)
     db.session.commit()
 

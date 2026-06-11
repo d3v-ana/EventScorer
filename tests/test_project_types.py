@@ -91,3 +91,38 @@ def test_project_type_contributes_to_summary_and_export_columns():
     assert time_type.export_values(time_project, time_result) == [
         '0:10.000', 1, '0:02.500', '0:12.500'
     ]
+
+
+def test_empty_type_config_falls_back_to_legacy_project_fields(ctx):
+    from app.project_types import get_project_config, get_project_type
+
+    score_project = Project(
+        name='Legacy Score', type='score', max_score=60, type_config=''
+    )
+    time_project = Project(
+        name='Legacy Time', type='time', penalty_per_violation=3.5,
+        type_config=''
+    )
+
+    assert get_project_config(score_project)['fields']['max_score'] == 60
+    assert get_project_config(time_project)['fields']['penalty_per_violation'] == 3.5
+    assert get_project_type('score').config_value(score_project, 'max_score') == 60
+    assert get_project_type('time').config_value(
+        time_project, 'penalty_per_violation'
+    ) == 3.5
+
+
+def test_build_config_from_form_accepts_legacy_field_names():
+    from app.project_types import get_project_type
+
+    score_config, score_errors = get_project_type('score').build_config_from_form({
+        'max_score': '75',
+    })
+    time_config, time_errors = get_project_type('time').build_config_from_form({
+        'penalty': '4.5',
+    })
+
+    assert score_errors == []
+    assert time_errors == []
+    assert score_config['fields']['max_score'] == 75
+    assert time_config['fields']['penalty_per_violation'] == 4.5

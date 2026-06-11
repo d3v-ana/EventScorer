@@ -47,7 +47,7 @@
                     <label data-project-filter-item data-category-id="{{ p.category_id or 0 }}" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 12px;border:1px solid #e0e0e0;border-radius:6px;font-weight:normal;">
                         <input type="checkbox" name="project_ids" value="{{ p.id }}">
                         <span>{{ p.name }}</span>
-                        <span style="color:#999;font-size:12px;">{% if project_type(p.type).input_mode == 'score' %}(满{{ p.max_score or '-' }}分){% else %}(罚{{ p.penalty_per_violation }}s){% endif %}</span>
+                        <span style="color:#999;font-size:12px;">{{ project_type(p.type).option_label(p) }}</span>
                     </label>
                     {% endfor %}
                 </div>

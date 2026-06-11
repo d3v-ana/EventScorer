@@ -41,7 +41,10 @@ function calcPreview(){
     var raw=getTime('timeMin','timeInput','parsedTime');
     var vio=parseInt(document.getElementById('violations')?document.getElementById('violations').value:0)||0;
     var opt=sel.options[sel.selectedIndex]||sel.querySelector('option[value="'+sel.value+'"]');
-    var pen=opt?parseFloat(opt.dataset.penalty):0;
+    var meta=(typeof projectTypes !== 'undefined' && sel.value) ? projectTypes[sel.value] : null;
+    var fields=meta&&meta.config&&meta.config.fields ? meta.config.fields : {};
+    var pen=fields.penalty_per_violation !== undefined ? parseFloat(fields.penalty_per_violation) : (opt?parseFloat(opt.dataset.penalty):0);
+    if(isNaN(pen))pen=0;
     var p=vio*pen,fin=raw+p;
     var rawEl=document.getElementById('calcRaw');
     var penEl=document.getElementById('calcPenalty');
